@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Thesis Research Plan — Yaxin Wu</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: #f4f6fa;
+      color: #1a1a2e;
+    }
+
+    /* ── Header ── */
+    header {
+      background: linear-gradient(135deg, #0d1b5e 0%, #1a3a8f 100%);
+      color: white;
+      padding: 48px 64px 40px;
+    }
+    header .tag {
+      display: inline-block;
+      background: #7ec83a;
+      color: #0d1b5e;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      padding: 4px 12px;
+      border-radius: 20px;
+      margin-bottom: 16px;
+    }
+    header h1 {
+      font-size: 28px;
+      font-weight: 700;
+      line-height: 1.3;
+      max-width: 700px;
+    }
+    header p.sub {
+      margin-top: 10px;
+      font-size: 14px;
+      opacity: 0.75;
+      font-style: italic;
+    }
+    header .meta {
+      margin-top: 24px;
+      display: flex;
+      gap: 32px;
+      font-size: 13px;
+      opacity: 0.85;
+    }
+    header .meta span strong { color: #7ec83a; }
+
+    /* ── Layout ── */
+    main {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 40px 32px 64px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+    }
+
+    /* ── Cards ── */
+    .card {
+      background: white;
+      border-radius: 12px;
+      padding: 28px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+    }
+    .card.full { grid-column: 1 / -1; }
+    .card h2 {
+      font-size: 13px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1.2px;
+      color: #7ec83a;
+      margin-bottom: 16px;
+    }
+    .card h3 {
+      font-size: 16px;
+      font-weight: 600;
+      color: #0d1b5e;
+      margin-bottom: 8px;
+    }
+    .card p {
+      font-size: 13.5px;
+      line-height: 1.7;
+      color: #444;
+    }
+
+    /* ── Research Question ── */
+    .rq-box {
+      background: #f0f4ff;
+      border-left: 4px solid #0d1b5e;
+      padding: 16px 20px;
+      border-radius: 0 8px 8px 0;
+      margin-top: 8px;
+    }
+    .rq-box p { font-size: 14px; font-weight: 500; color: #0d1b5e; line-height: 1.7; }
+
+    /* ── Indicators ── */
+    .indicators { display: flex; flex-direction: column; gap: 14px; margin-top: 8px; }
+    .indicator {
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+    }
+    .indicator .badge {
+      flex-shrink: 0;
+      width: 44px;
+      height: 44px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 13px;
+    }
+    .badge.ci { background: #e8f0fe; color: #1a3a8f; }
+    .badge.rf { background: #e6f7d9; color: #3a7d0e; }
+    .badge.cv { background: #fff3e0; color: #b45309; }
+    .badge.ep { background: #fce8f3; color: #9d174d; }
+    .indicator .info p.label { font-size: 13px; font-weight: 600; color: #1a1a2e; }
+    .indicator .info p.desc { font-size: 12.5px; color: #555; line-height: 1.6; margin-top: 2px; }
+    .indicator .info p.source {
+      font-size: 11.5px;
+      color: #7ec83a;
+      font-weight: 600;
+      margin-top: 3px;
+    }
+
+    /* ── Flow ── */
+    .flow {
+      display: flex;
+      align-items: center;
+      gap: 0;
+      margin-top: 12px;
+      flex-wrap: wrap;
+    }
+    .flow-step {
+      background: #f0f4ff;
+      border: 1.5px solid #c5d0f5;
+      border-radius: 10px;
+      padding: 14px 18px;
+      text-align: center;
+      flex: 1;
+      min-width: 130px;
+    }
+    .flow-step.highlight {
+      background: #0d1b5e;
+      border-color: #0d1b5e;
+      color: white;
+    }
+    .flow-step.highlight p.step-title { color: #7ec83a; }
+    .flow-step.highlight p.step-desc { color: rgba(255,255,255,0.8); }
+    .flow-step p.step-num {
+      font-size: 11px;
+      font-weight: 700;
+      color: #7ec83a;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+    .flow-step p.step-title {
+      font-size: 13.5px;
+      font-weight: 600;
+      color: #0d1b5e;
+    }
+    .flow-step p.step-desc {
+      font-size: 11.5px;
+      color: #666;
+      margin-top: 4px;
+      line-height: 1.5;
+    }
+    .arrow {
+      font-size: 18px;
+      color: #c5d0f5;
+      padding: 0 6px;
+      flex-shrink: 0;
+    }
+
+    /* ── Phases ── */
+    .phases { display: flex; flex-direction: column; gap: 14px; margin-top: 8px; }
+    .phase {
+      border: 1.5px solid #e8edf5;
+      border-radius: 10px;
+      padding: 16px 18px;
+    }
+    .phase .phase-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+    .phase-num {
+      background: #0d1b5e;
+      color: white;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 3px 10px;
+      border-radius: 20px;
+    }
+    .phase h4 { font-size: 14px; font-weight: 600; color: #0d1b5e; }
+    .phase p { font-size: 12.5px; color: #555; line-height: 1.6; }
+    .formula {
+      background: #f8faff;
+      border: 1px solid #dce4f5;
+      border-radius: 6px;
+      padding: 10px 14px;
+      font-family: 'Courier New', monospace;
+      font-size: 12px;
+      color: #1a3a8f;
+      margin-top: 8px;
+    }
+
+    /* ── Regions ── */
+    .regions { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+    .region-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 14px;
+      background: #f8faff;
+      border-radius: 8px;
+    }
+    .region-code {
+      font-size: 11px;
+      font-weight: 700;
+      color: white;
+      background: #1a3a8f;
+      padding: 3px 8px;
+      border-radius: 5px;
+      min-width: 80px;
+      text-align: center;
+    }
+    .region-bar-wrap { flex: 1; background: #e8edf5; border-radius: 10px; height: 6px; }
+    .region-bar { height: 6px; border-radius: 10px; background: #7ec83a; }
+    .region-label { font-size: 12px; color: #555; min-width: 80px; text-align: right; }
+
+    /* ── Timeline ── */
+    .timeline { display: flex; flex-direction: column; gap: 0; margin-top: 8px; }
+    .tl-row {
+      display: flex;
+      align-items: stretch;
+      gap: 0;
+    }
+    .tl-left {
+      width: 72px;
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .tl-week {
+      font-size: 11px;
+      font-weight: 700;
+      color: #0d1b5e;
+      background: #e8f0fe;
+      border-radius: 5px;
+      padding: 3px 6px;
+      text-align: center;
+      white-space: nowrap;
+    }
+    .tl-line {
+      flex: 1;
+      width: 2px;
+      background: #dce4f5;
+      margin: 4px 0;
+    }
+    .tl-right {
+      padding: 0 0 18px 16px;
+      flex: 1;
+    }
+    .tl-right p.tl-title { font-size: 13px; font-weight: 600; color: #1a1a2e; padding-top: 2px; }
+    .tl-right p.tl-desc { font-size: 12px; color: #777; margin-top: 2px; line-height: 1.5; }
+    .tl-row.writing .tl-week { background: #0d1b5e; color: white; }
+    .tl-row.writing .tl-line { background: #0d1b5e; }
+    .tl-row.writing .tl-right p.tl-title { color: #0d1b5e; }
+
+    /* ── Contributions ── */
+    .contrib-list { display: flex; flex-direction: column; gap: 12px; margin-top: 8px; }
+    .contrib {
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+    }
+    .contrib .num {
+      flex-shrink: 0;
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      background: #7ec83a;
+      color: #0d1b5e;
+      font-weight: 700;
+      font-size: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .contrib p { font-size: 13px; color: #444; line-height: 1.6; }
+    .contrib p strong { color: #0d1b5e; }
+
+    /* ── Footer ── */
+    footer {
+      text-align: center;
+      padding: 20px;
+      font-size: 12px;
+      color: #aaa;
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── Header ── -->
+<header>
+  <div class="tag">Master Thesis · IE University · 2026</div>
+  <h1>Carbon-Intelligent Workload Scheduling for AI Data Centers</h1>
+  <p class="sub">A Deterministic Optimization Approach Across Temporal and Spatial Dimensions</p>
+  <div class="meta">
+    <span><strong>Student</strong> Yaxin (Isabel) Wu</span>
+    <span><strong>Supervisor</strong> Prof. Bissan Ghaddar</span>
+    <span><strong>Program</strong> Master of Business Analytics & Big Data</span>
+    <span><strong>Duration</strong> 8 Weeks · May – June 2026</span>
+  </div>
+</header>
+
+<main>
+
+  <!-- ── Research Question ── -->
+  <div class="card full">
+    <h2>Core Research Question</h2>
+    <div class="rq-box">
+      <p>How can a deterministic mathematical programming model — driven by carbon intensity (CI), renewable energy fraction (RF), and CI variability (CV) — minimize AI data center carbon emissions through joint <strong>temporal</strong> (when to run) and <strong>spatial</strong> (where to run) workload scheduling across five grid regions?</p>
+    </div>
+  </div>
+
+  <!-- ── Indicators ── -->
+  <div class="card">
+    <h2>Core Indicators</h2>
+    <div class="indicators">
+      <div class="indicator">
+        <div class="badge ci">CI</div>
+        <div class="info">
+          <p class="label">Carbon Intensity</p>
+          <p class="desc">Primary optimization signal in the objective function. Unit: gCO₂eq/kWh. Fully comparable across regions.</p>
+          <p class="source">↳ ElectricityMaps API · carbonIntensity field</p>
+        </div>
+      </div>
+      <div class="indicator">
+        <div class="badge rf">RF</div>
+        <div class="info">
+          <p class="label">Renewable Fraction</p>
+          <p class="desc">Distinguishes stable clean energy (nuclear) from variable clean energy (wind/solar) when CI values are equal, enabling smarter scheduling.</p>
+          <p class="source">↳ ElectricityMaps API · powerBreakdown field (wind + solar + hydro)</p>
+        </div>
+      </div>
+      <div class="indicator">
+        <div class="badge cv">CV</div>
+        <div class="info">
+          <p class="label">CI Variability</p>
+          <p class="desc">Measures temporal scheduling opportunity per region (std / mean of CI). Explains cross-region result differences — high CV = high savings potential.</p>
+          <p class="source">↳ Computed from historical CI time series — no additional data source needed</p>
+        </div>
+      </div>
+      <div class="indicator">
+        <div class="badge ep">$</div>
+        <div class="info">
+          <p class="label">Electricity Price (Constraint)</p>
+          <p class="desc">Per-region budget cap. Absolute prices not compared across regions, preserving model generalizability.</p>
+          <p class="source">↳ Future work: upgrade to objective with regional market mechanisms (PJM LMP, Nord Pool, USEP)</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Regions ── -->
+  <div class="card">
+    <h2>Target Regions</h2>
+    <p style="font-size:12.5px;color:#666;margin-bottom:14px;">Five regions covering diverse grid structures and scheduling opportunities. SG serves as the low-CV control case.</p>
+    <div class="regions">
+      <div class="region-row">
+        <span class="region-code">US-MIDA-PJM</span>
+        <div class="region-bar-wrap"><div class="region-bar" style="width:95%"></div></div>
+        <span class="region-label">Highest CV</span>
+      </div>
+      <div class="region-row">
+        <span class="region-code">US-NY-NYIS</span>
+        <div class="region-bar-wrap"><div class="region-bar" style="width:75%"></div></div>
+        <span class="region-label">High CV</span>
+      </div>
+      <div class="region-row">
+        <span class="region-code">FI · Finland</span>
+        <div class="region-bar-wrap"><div class="region-bar" style="width:55%"></div></div>
+        <span class="region-label">Seasonal</span>
+      </div>
+      <div class="region-row">
+        <span class="region-code">BE · Belgium</span>
+        <div class="region-bar-wrap"><div class="region-bar" style="width:50%"></div></div>
+        <span class="region-label">EU Interconnect</span>
+      </div>
+      <div class="region-row">
+        <span class="region-code">SG · Singapore</span>
+        <div class="region-bar-wrap"><div class="region-bar" style="width:15%;background:#e8a020;"></div></div>
+        <span class="region-label">Lowest CV ⚠</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Methodology Flow ── -->
+  <div class="card full">
+    <h2>Methodology</h2>
+    <div class="flow">
+      <div class="flow-step">
+        <p class="step-num">Input</p>
+        <p class="step-title">Historical Data</p>
+        <p class="step-desc">ElectricityMaps<br/>CI · RF · CV<br/>2021–2025 Hourly</p>
+      </div>
+      <div class="arrow">→</div>
+      <div class="flow-step highlight">
+        <p class="step-num">Core Contribution</p>
+        <p class="step-title">Deterministic Optimization</p>
+        <p class="step-desc">Gurobi LP<br/>Unified joint model<br/>Temporal + Spatial</p>
+      </div>
+      <div class="arrow">→</div>
+      <div class="flow-step">
+        <p class="step-num">Evaluation</p>
+        <p class="step-title">Backtesting</p>
+        <p class="step-desc">vs. Carbon-Agnostic<br/>vs. Simple Shifting<br/>vs. Oracle</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Optimization Model ── -->
+  <div class="card full">
+    <h2>Optimization Model — Unified Joint LP</h2>
+    <div class="phases">
+      <div class="phase">
+        <div class="phase-header">
+          <span class="phase-num">Decision Variable</span>
+          <h4>x<sub>r,t</sub> ≥ 0 — compute load in region r at hour t</h4>
+        </div>
+        <p>A single LP jointly optimizes <strong>when</strong> and <strong>where</strong> to run workloads across all 5 regions and all time periods simultaneously. The model allocates load freely across the r×t space to find the globally carbon-optimal schedule.</p>
+        <div class="formula">
+          min  Σ_r Σ_t  x_{r,t} · CI_r(t) · (1 − α · RF_r(t))<br/><br/>
+          s.t. (C1) Σ_r Σ_t x_{r,t} = D &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; [demand completion · Liu et al., 2012]<br/>
+          &nbsp;&nbsp;&nbsp;&nbsp; (C2) x_{r,t} ≤ C_max,r &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; [regional capacity · Liu et al., 2012]<br/>
+          &nbsp;&nbsp;&nbsp;&nbsp; (C3) x_{flex,r,t} ≤ VCC_r(t) &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; [VCC constraint · Colangelo et al., 2025]<br/>
+          &nbsp;&nbsp;&nbsp;&nbsp; (C4) Σ_t x_{r,t}·P_r(t) ≤ Budget_r &nbsp;[electricity budget · Lin et al., 2026]
+        </div>
+      </div>
+      <div class="phase">
+        <div class="phase-header">
+          <span class="phase-num">References</span>
+          <h4>Model Validation</h4>
+        </div>
+        <p style="line-height:1.8">
+          <strong>CI(t)·L(t) objective form</strong> — Radovanovic et al. (2023), IEEE Trans. Power Systems<br/>
+          <strong>RF weighting term (1−α·RF)</strong> — Novel extension; inspired by Radovanovic et al. (2023)<br/>
+          <strong>Multi-region LP structure</strong> — Liu et al. (2012), ACM SIGMETRICS<br/>
+          <strong>VCC constraint</strong> — Colangelo et al. (2025), arXiv:2507.00909<br/>
+          <strong>Cross-region joint scheduling</strong> — Lin et al. (2026), Renewable Energy
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Contributions ── -->
+  <div class="card">
+    <h2>Expected Contributions</h2>
+    <div class="contrib-list">
+      <div class="contrib">
+        <div class="num">1</div>
+        <p><strong>Unified Joint Optimization:</strong> Single LP jointly optimizes temporal and spatial dimensions — model decides when and where to run without pre-imposed decomposition</p>
+      </div>
+      <div class="contrib">
+        <div class="num">2</div>
+        <p><strong>Formal Mathematical Programming:</strong> Upgrades the heuristic VCC framework to a provably optimal LP, with RF weighting to distinguish renewable energy quality</p>
+      </div>
+      <div class="contrib">
+        <div class="num">3</div>
+        <p><strong>Five-Region Empirical Evaluation:</strong> Uses CV to explain cross-region result differences and profiles each region's Carbon Scheduling Opportunity</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Timeline ── -->
+  <div class="card">
+    <h2>Timeline</h2>
+    <div class="timeline">
+      <div class="tl-row">
+        <div class="tl-left"><span class="tl-week">Wk 1</span><div class="tl-line"></div></div>
+        <div class="tl-right"><p class="tl-title">Data Collection + EDA</p><p class="tl-desc">CI/RF data cleaning across 5 regions; variability analysis</p></div>
+      </div>
+      <div class="tl-row">
+        <div class="tl-left"><span class="tl-week">Wk 2</span><div class="tl-line"></div></div>
+        <div class="tl-right"><p class="tl-title">Model Design + Gurobi Setup</p><p class="tl-desc">Formulate unified LP; run single-region single-day test</p></div>
+      </div>
+      <div class="tl-row">
+        <div class="tl-left"><span class="tl-week">Wk 3</span><div class="tl-line"></div></div>
+        <div class="tl-right"><p class="tl-title">Single-Region Implementation</p><p class="tl-desc">Temporal dimension validated across 5 regions; VCC generation</p></div>
+      </div>
+      <div class="tl-row">
+        <div class="tl-left"><span class="tl-week">Wk 4</span><div class="tl-line"></div></div>
+        <div class="tl-right"><p class="tl-title">Full Joint Model Implementation</p><p class="tl-desc">Unified multi-region LP; joint temporal + spatial optimization</p></div>
+      </div>
+      <div class="tl-row">
+        <div class="tl-left"><span class="tl-week">Wk 5</span><div class="tl-line"></div></div>
+        <div class="tl-right"><p class="tl-title">Backtesting</p><p class="tl-desc">2-year historical replay; carbon savings vs. all baselines</p></div>
+      </div>
+      <div class="tl-row">
+        <div class="tl-left"><span class="tl-week">Wk 6</span><div class="tl-line"></div></div>
+        <div class="tl-right"><p class="tl-title">Results Analysis</p><p class="tl-desc">Regional comparison; temporal vs. spatial marginal contribution; CV correlation</p></div>
+      </div>
+      <div class="tl-row writing">
+        <div class="tl-left"><span class="tl-week">Wk 7</span><div class="tl-line"></div></div>
+        <div class="tl-right"><p class="tl-title">Writing — Core Chapters</p><p class="tl-desc">Introduction · Methodology · Results (draft)</p></div>
+      </div>
+      <div class="tl-row writing">
+        <div class="tl-left"><span class="tl-week">Wk 8</span></div>
+        <div class="tl-right"><p class="tl-title">Writing — Final Chapters</p><p class="tl-desc">Literature Review · Discussion · Conclusion · Submission</p></div>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<footer>Yaxin (Isabel) Wu · IE University · Master Thesis 2026 · Supervisor: Prof. Bissan Ghaddar</footer>
+
+</body>
+</html>

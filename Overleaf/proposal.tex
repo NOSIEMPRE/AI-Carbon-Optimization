@@ -1,0 +1,299 @@
+\documentclass[11pt, a4paper]{article}
+
+% ── Packages ──────────────────────────────────────────────────────────────────
+\usepackage[margin=2.5cm]{geometry}
+\usepackage{amsmath, amssymb}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{tabularx}
+\usepackage{hyperref}
+\usepackage{natbib}
+\usepackage{setspace}
+\usepackage{titlesec}
+\usepackage{parskip}
+\usepackage{xcolor}
+\usepackage{fancyhdr}
+
+% ── Colors ────────────────────────────────────────────────────────────────────
+\definecolor{ieblue}{RGB}{13, 27, 94}
+\definecolor{iegreen}{RGB}{126, 200, 58}
+
+% ── Section formatting ────────────────────────────────────────────────────────
+\titleformat{\section}{\large\bfseries\color{ieblue}}{}{0em}{}[\vspace{-4pt}\rule{\linewidth}{1pt}]
+\titleformat{\subsection}{\normalsize\bfseries\color{ieblue}}{}{0em}{}
+
+% ── Header / Footer ───────────────────────────────────────────────────────────
+\pagestyle{fancy}
+\fancyhf{}
+\rhead{\small\color{gray} Thesis Proposal · Yaxin Wu · IE University}
+\rfoot{\small\thepage}
+\renewcommand{\headrulewidth}{0pt}
+
+% ── Hyperref ──────────────────────────────────────────────────────────────────
+\hypersetup{
+  colorlinks=true,
+  linkcolor=ieblue,
+  citecolor=ieblue,
+  urlcolor=ieblue
+}
+
+% ─────────────────────────────────────────────────────────────────────────────
+\begin{document}
+
+% ── Title block ───────────────────────────────────────────────────────────────
+\begin{center}
+  {\LARGE\bfseries\color{ieblue}
+    Carbon-Intelligent Workload Scheduling\\[4pt]
+    for AI Data Centers}\\[10pt]
+  {\large A Deterministic Mathematical Optimization Approach}\\[18pt]
+  \begin{tabular}{rl}
+    \textbf{Student}     & Yaxin (Isabel) Wu \\
+    \textbf{Supervisor}  & Prof.\ Bissan Ghaddar \\
+    \textbf{Program}     & Master of Business Analytics \& Big Data, IE University \\
+    \textbf{Date}        & May 2026 \\
+  \end{tabular}
+\end{center}
+
+\vspace{6pt}
+\noindent\rule{\linewidth}{1.5pt}
+\vspace{4pt}
+
+% ── 1. Research Positioning ───────────────────────────────────────────────────
+\section{Research Positioning}
+
+\textbf{Supervisor's framework}: How to build a system that translates grid carbon intensity signals into real-time data center scheduling decisions, using Virtual Capacity Curves (VCC) derived from ElectricityMaps data and Google Cluster Traces \citep{colangelo2025}.
+
+\textbf{This thesis}: Within that framework, how can a \emph{deterministic mathematical programming model} — rather than heuristic rules — minimize AI data center carbon emissions through joint temporal and spatial workload scheduling across five grid regions?
+
+The supervisor defines the overall pipeline (VCC generation, workload classification, simulation architecture). This thesis formalizes the Carbon-Aware Optimization component into a provably optimal LP, deepening and extending the existing framework.
+
+% ── 2. Core Research Question ─────────────────────────────────────────────────
+\section{Core Research Question}
+
+\begin{quote}
+  \itshape
+  How can a deterministic mathematical programming model — driven by carbon intensity (CI), renewable energy fraction (RF), and CI variability (CV) — minimize AI data center carbon emissions through joint temporal (when to run) and spatial (where to run) workload scheduling across five grid regions?
+\end{quote}
+
+% ── 3. Data ───────────────────────────────────────────────────────────────────
+\section{Data}
+
+\subsection{Sources and Coverage}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{llll}
+\toprule
+\textbf{Signal} & \textbf{Source} & \textbf{Granularity} & \textbf{Period} \\
+\midrule
+Carbon Intensity CI (gCO\textsubscript{2}eq/kWh) & ElectricityMaps API & Hourly & 2023--2025 \\
+Renewable Fraction RF (\%)                        & ElectricityMaps API & Hourly & 2023--2025 \\
+Electricity Price (constraint parameter)          & PJM / NYISO / ENTSO-E / EMC & Hourly & 2023--2025 \\
+Workload traces                                   & Google Cluster Traces & Per-job & -- \\
+\bottomrule
+\end{tabular}
+\caption{Data sources and coverage. CI and RF are retrieved via the ElectricityMaps
+\texttt{carbonIntensity} and \texttt{powerBreakdown} API fields respectively. CV is
+computed from the historical CI time series (\(\sigma/\mu\)) and requires no additional
+data source.}
+\end{table}
+
+\subsection{Target Regions}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{lllp{5.5cm}}
+\toprule
+\textbf{Zone} & \textbf{Grid mix} & \textbf{CI level} & \textbf{Scheduling opportunity} \\
+\midrule
+US-MIDA-PJM  & Coal / gas / nuclear & High, high variance  & Highest (high CV) \\
+US-NY-NYIS   & Hydro + nuclear       & Medium, intra-day variability & High \\
+FI           & Hydro + nuclear + wind & Low, strong seasonal variation & Medium \\
+BE           & Nuclear, EU interconnect & Medium-low, neighbour influence & Medium \\
+SG           & Almost entirely gas   & High but stable, low variance & Lowest (low CV) \\
+\bottomrule
+\end{tabular}
+\caption{Five target regions. SG is an important control case: its low CI variability
+means temporal shifting yields limited savings, validating the argument that not all
+regions benefit equally from carbon-aware scheduling.}
+\end{table}
+
+% ── 4. Indicators ─────────────────────────────────────────────────────────────
+\section{Core Indicators}
+
+\paragraph{Carbon Intensity (CI).}
+The primary optimization signal, measured in gCO\textsubscript{2}eq/kWh and fully comparable across regions. Retrieved directly from the ElectricityMaps \texttt{carbonIntensity} field \citep{radovanovic2023}.
+
+\paragraph{Renewable Fraction (RF).}
+CI alone does not reveal \emph{why} intensity is low. RF distinguishes stable clean energy (nuclear, constant output) from variable clean energy (wind, solar), which have different scheduling implications. Formally, RF\(_{r}(t)\) is the share of wind, solar, and hydro in total power consumption, computed from the \texttt{powerBreakdown} field. Including RF allows the model to prioritize renewable absorption beyond simply chasing low-CI moments \citep{radovanovic2023}.
+
+\paragraph{CI Variability (CV).}
+CV is the coefficient of variation of the hourly CI time series for a given region:
+\[
+  \text{CV}_r = \frac{\sigma(\text{CI}_r)}{\mu(\text{CI}_r)}
+\]
+A high CV implies large intra-day or intra-week swings, creating high potential savings from temporal shifting. A low CV (e.g.\ SG) implies limited benefit. CV is used as an analytical indicator to explain cross-region result differences and is a novel contribution of this thesis.
+
+\paragraph{Electricity Price.}
+Treated as a per-region budget constraint rather than an objective term, preserving model generalizability across electricity markets with incomparable absolute prices (PJM LMP, Nord Pool, USEP). Deep integration with market mechanisms is left as future work.
+
+% ── 5. Methodology ────────────────────────────────────────────────────────────
+\section{Methodology}
+
+The core methodology is deterministic optimization. Historical CI and RF data are used directly as model inputs, and evaluation is performed via backtesting over a two-year historical window.
+
+\[
+  \underbrace{\text{Historical CI/RF (ElectricityMaps)}}_{\text{Input}}
+  \;\longrightarrow\;
+  \underbrace{\text{Deterministic Optimization (Gurobi LP)}}_{\text{Core contribution}}
+  \;\longrightarrow\;
+  \underbrace{\text{Backtesting vs.\ baselines}}_{\text{Evaluation}}
+\]
+
+\subsection{Unified Joint Optimization Model}
+
+Rather than separating temporal and spatial shifting into sequential phases, the model optimizes both dimensions simultaneously. The decision variable \(x_{r,t} \geq 0\) denotes the compute load (kW) assigned to region \(r \in \mathcal{R}\) at hour \(t \in \mathcal{T}\), and covers both the \emph{when} and the \emph{where} of scheduling in a single formulation.
+
+\subsubsection*{Objective Function}
+
+\begin{equation}
+  \min \sum_{r \in \mathcal{R}} \sum_{t \in \mathcal{T}}
+    x_{r,t} \cdot \text{CI}_r(t) \cdot \bigl(1 - \alpha \cdot \text{RF}_r(t)\bigr)
+  \label{eq:objective}
+\end{equation}
+
+Hours with high RF receive a discounted effective carbon cost, incentivizing the model to concentrate workloads in periods that are simultaneously low-carbon \emph{and} high-renewable, rather than simply chasing the lowest CI value. The parameter \(\alpha \in [0,1]\) controls the weight placed on renewable quality.
+
+\subsubsection*{Constraints}
+
+\begin{align}
+  &\sum_{r \in \mathcal{R}} \sum_{t \in \mathcal{T}} x_{r,t} = D
+    &&\text{(C1: total demand completion)} \label{eq:c1} \\[4pt]
+  &x_{r,t} \leq C_{\max,r}
+    &&\forall\, r, t \quad \text{(C2: regional capacity)} \label{eq:c2} \\[4pt]
+  &x_{\text{flex},r,t} \leq \text{VCC}_r(t)
+    &&\forall\, r, t \quad \text{(C3: virtual capacity curve)} \label{eq:c3} \\[4pt]
+  &\sum_{t \in \mathcal{T}} x_{r,t} \cdot P_r(t) \leq B_r
+    &&\forall\, r \quad \text{(C4: per-region electricity budget)} \label{eq:c4} \\[4pt]
+  &x_{r,t} \geq 0
+    &&\forall\, r, t \quad \text{(C5: non-negativity)} \label{eq:c5}
+\end{align}
+
+Constraint~\eqref{eq:c3} encodes the VCC mechanism from \citet{colangelo2025}: flexible load in each region cannot exceed the carbon-intensity-indexed capacity ceiling at any hour. Constraint~\eqref{eq:c4} is a modeling choice: since electricity prices across PJM, NYISO, Nord Pool, and USEP are denominated in different currencies and governed by incomparable market structures, incorporating price directly into the objective would require cross-region cost normalization that introduces additional assumptions. A per-region budget cap preserves model generalizability while still bounding operational cost; deeper price modeling is reserved as future work.
+
+\subsubsection*{Model Validation: Component-Level References}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{lp{8.5cm}l}
+\toprule
+\textbf{Component} & \textbf{Description} & \textbf{Reference} \\
+\midrule
+Objective form \eqref{eq:objective}
+  & CI-weighted load as carbon cost signal
+  & \citet{radovanovic2023} \\
+RF weighting \((1-\alpha\cdot\text{RF})$
+  & Novel extension distinguishing renewable source quality
+  & This thesis \\
+Constraints \eqref{eq:c1}--\eqref{eq:c2}
+  & Demand completion and capacity bounds
+  & \citet{liu2012} \\
+Constraint \eqref{eq:c3}
+  & VCC-indexed flexible load ceiling
+  & \citet{colangelo2025} \\
+Constraint \eqref{eq:c4}
+  & Per-region electricity budget (modeling choice; see text)
+  & --- \\
+Multi-region joint LP structure
+  & Cross-region temporal-spatial allocation
+  & \citet{liu2012, lin2026} \\
+\bottomrule
+\end{tabular}
+\caption{Component-level references validating the mathematical formulation.}
+\end{table}
+
+\subsubsection*{Solver}
+The model is solved with Gurobi as a Linear Program (LP) over continuous variables. If workload discretization is required, the formulation upgrades to a Mixed Integer Program (MIP); given the large-scale horizon (\(|\mathcal{R}|=5\), \(|\mathcal{T}| \approx 17{,}520\) hours over two years), LP relaxation is the default.
+
+\subsection{Evaluation — Backtesting}
+
+The optimal schedule is evaluated by replaying two years of historical data in a rolling-window fashion, simulating real-time decisions without look-ahead beyond the current optimization window.
+
+\begin{table}[h]
+\centering
+\begin{tabular}{lp{9cm}}
+\toprule
+\textbf{Baseline} & \textbf{Description} \\
+\midrule
+Carbon-Agnostic     & Uniform scheduling; no carbon awareness \\
+Simple Shifting     & Rule-based: defer all flexible load to the lowest-CI hour \\
+Oracle              & Perfect 24h CI foresight (theoretical upper bound) \\
+\textbf{This model} & Deterministic LP with historical CI/RF and VCC constraints \\
+\bottomrule
+\end{tabular}
+\caption{Evaluation baselines.}
+\end{table}
+
+\textbf{Key analyses:}
+\begin{itemize}
+  \item Carbon savings per region vs.\ all three baselines
+  \item Post-hoc decomposition: temporal vs.\ spatial marginal contribution via counterfactual scenarios
+  \item Correlation of CV with carbon savings (explaining cross-region variation)
+\end{itemize}
+
+% ── 6. Expected Contributions ─────────────────────────────────────────────────
+\section{Expected Contributions}
+
+\begin{enumerate}
+  \item \textbf{Unified joint optimization model}: A single LP that simultaneously optimizes temporal (when) and spatial (where) workload scheduling, producing a provably optimal solution without pre-imposed phase decomposition.
+
+  \item \textbf{Formal upgrade of the VCC framework}: The supervisor's heuristic VCC mechanism \citep{colangelo2025} is incorporated as a mathematical constraint within a tractable LP, enabling optimality guarantees. The RF weighting term is introduced as a novel extension to differentiate renewable energy quality.
+
+  \item \textbf{Five-region empirical evaluation}: A systematic comparison across heterogeneous grid regions (US, Europe, Southeast Asia), using CV as an analytical indicator to explain cross-region result differences and characterize each region's Carbon Scheduling Opportunity.
+\end{enumerate}
+
+% ── 7. Timeline ───────────────────────────────────────────────────────────────
+\section{Timeline (8 Weeks)}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{clp{8cm}}
+\toprule
+\textbf{Week} & \textbf{Focus} & \textbf{Deliverables} \\
+\midrule
+1 & Data collection + EDA
+  & CI/RF cleaned datasets for 5 regions; descriptive statistics; CI distribution and variability plots \\
+2 & Model design + Gurobi setup
+  & Unified LP formalized; Gurobi solving single-region single-day instance \\
+3 & Single-region validation
+  & Temporal dimension validated across all 5 regions; VCC generation \\
+4 & Full joint model
+  & Unified multi-region LP running across all 5 regions; joint temporal + spatial results \\
+5 & Backtesting
+  & Two-year historical replay; carbon savings vs.\ all baselines computed \\
+6 & Results analysis
+  & Regional comparison; temporal vs.\ spatial marginal decomposition; CV correlation analysis \\
+7 & Writing (core chapters)
+  & Introduction, Methodology, Results (draft) \\
+8 & Writing (final chapters)
+  & Literature Review, Discussion, Conclusion; final submission \\
+\bottomrule
+\end{tabular}
+\caption{Eight-week thesis timeline. If the full MIP proves computationally prohibitive,
+LP relaxation is used. Deep electricity price modelling is reserved for future work.}
+\end{table}
+
+% ── 8. Future Work ────────────────────────────────────────────────────────────
+\section{Future Work}
+
+\begin{itemize}
+  \item \textbf{Electricity cost modelling}: Promote the electricity price from a budget constraint to a component of the objective function, incorporating regional market mechanisms (PJM LMP, Nord Pool, USEP).
+  \item \textbf{Stochastic extension}: Model CI forecast uncertainty via stochastic programming or robust optimization (complementary to this deterministic baseline).
+  \item \textbf{Surrogate / RL approximation}: Use machine learning to approximate Gurobi's optimal policy for real-time, low-latency scheduling deployment.
+\end{itemize}
+
+% ── References ────────────────────────────────────────────────────────────────
+\bibliographystyle{plainnat}
+\bibliography{references}
+
+\end{document}
