@@ -212,8 +212,10 @@ Multi-region joint LP structure
 \caption{Component-level references validating the mathematical formulation.}
 \end{table}
 
-\subsubsection*{Solver}
-The model is solved with Gurobi as a Linear Program (LP) over continuous variables. If workload discretization is required, the formulation upgrades to a Mixed Integer Program (MIP); given the large-scale horizon (\(|\mathcal{R}|=5\), \(|\mathcal{T}| \approx 17{,}520\) hours over two years), LP relaxation is the default.
+\subsubsection*{Solver and Heuristic Fallback}
+The model is solved with \textbf{Gurobi} as a Linear Program (LP) over continuous variables. If workload discretization is required, the formulation upgrades to a Mixed Integer Program (MIP); given the large-scale horizon (\(|\mathcal{R}|=5\), \(|\mathcal{T}| \approx 17{,}520\) hours over two years), LP relaxation is the default.
+
+If the LP solve time proves prohibitive for rolling-window backtesting, a \textbf{greedy heuristic} is implemented as a fallback: at each decision window, sort hours by effective carbon cost \(\text{CI}_r(t)\cdot(1-\alpha\cdot\text{RF}_r(t))\) and greedily assign load to the cheapest region-hour pairs subject to capacity constraints. The heuristic provides a near-optimal bound and serves as an additional baseline for benchmarking solution quality.
 
 \subsection{Evaluation — Backtesting}
 
@@ -241,7 +243,29 @@ Oracle              & Perfect 24h CI foresight (theoretical upper bound) \\
   \item Correlation of CV with carbon savings (explaining cross-region variation)
 \end{itemize}
 
-% ── 6. Expected Contributions ─────────────────────────────────────────────────
+% ── 6. Thesis Structure ───────────────────────────────────────────────────────
+\section{Planned Thesis Structure (\textasciitilde 30 Pages)}
+
+\begin{enumerate}
+  \item \textbf{Introduction} (\textasciitilde 4 pages)\\
+  Motivation: rapid growth of AI data center energy consumption and associated carbon emissions; gap between current heuristic scheduling practices and mathematically optimal approaches; research question and contributions overview.
+
+  \item \textbf{Literature Review} (\textasciitilde 6 pages)\\
+  Review of carbon-aware workload scheduling literature across four streams: (i) temporal shifting, (ii) spatial/geographic load balancing, (iii) joint spatio-temporal optimization, and (iv) AI-specific workload management. Concludes with explicit positioning of this thesis's contribution: the first deterministic LP that jointly optimizes temporal and spatial scheduling with an RF-weighted objective across heterogeneous grid regions.
+
+  \item \textbf{Problem Description} (\textasciitilde 5 pages)\\
+  Formal problem statement; data description (ElectricityMaps CI/RF, five regions 2024--2025); indicator definitions (CI, RF, CV); mathematical formulation of the unified joint LP (objective, constraints C1--C5, notation).
+
+  \item \textbf{Computation Results \& Solution Methodology} (\textasciitilde 10 pages)\\
+  Primary solver: Gurobi LP. Heuristic fallback (if computationally necessary): greedy carbon-aware shifting rule. Results sections: (a) single-region temporal optimization per zone; (b) full joint multi-region results; (c) backtesting vs.\ baselines (Carbon-Agnostic, Simple Shifting, Oracle); (d) CV correlation analysis explaining cross-region variation; (e) post-hoc temporal vs.\ spatial marginal contribution decomposition.
+
+  \item \textbf{Conclusion} (\textasciitilde 3 pages)\\
+  Summary of findings; practical implications for AI data center operators; limitations; future work (stochastic extension, electricity price in objective, RL/surrogate approximation).
+\end{enumerate}
+
+\noindent\textit{Note on heuristic}: The Simple Temporal Shifting baseline (greedy rule: defer all flexible load to the minimum-CI hour) serves as the primary heuristic comparator. If the Gurobi LP solve time proves prohibitive for the full two-year rolling-window backtesting, a lightweight greedy heuristic will be implemented as a fallback to bound solution quality.
+
+% ── 7. Expected Contributions ─────────────────────────────────────────────────
 \section{Expected Contributions}
 
 \begin{enumerate}
