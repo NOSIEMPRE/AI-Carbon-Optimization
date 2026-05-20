@@ -33,7 +33,7 @@ ZONES = {
 }
 
 START_DATE = datetime(2024, 1, 1, tzinfo=timezone.utc)
-END_DATE   = datetime(2025, 12, 31, tzinfo=timezone.utc)
+END_DATE   = datetime(2025, 12, 31, 23, tzinfo=timezone.utc)
 
 RENEWABLE_SOURCES = {"wind", "solar", "hydro", "geothermal", "biomass", "nuclear"}
 CLEAN_SOURCES     = {"wind", "solar", "hydro", "geothermal", "biomass"}   # excludes nuclear for RF

@@ -1,0 +1,172 @@
+\section{Methodology}
+\label{sec:methodology}
+
+This section describes the research design, data sources, mathematical formulation, and implementation details of the proposed carbon-intelligent workload scheduling model.
+
+\subsection{Research Design}
+
+This thesis applies a \emph{deterministic optimization} approach to carbon-aware scheduling.
+The core method is a linear program (LP) that, given historical hourly carbon intensity (CI) and renewable fraction (RF) data, computes the globally optimal assignment of compute load across five regions and 17,544 hours.
+Optimality guarantees are evaluated through rolling-window backtesting against three baselines: carbon-agnostic scheduling, greedy temporal shifting, and an oracle with perfect foresight.
+This design falls within the \emph{validation of methodology} category: it applies and extends established LP-based scheduling frameworks~\cite{liu2012, riepin2024spatiotemporal} to a new dataset and region portfolio, with a novel RF weighting term as the primary methodological contribution.
+
+\subsection{System Model}
+
+We consider a cloud service operator managing \emph{delay-tolerant} AI workloads across $|\mathcal{R}| = 5$ geographically distributed datacenter regions.
+Each region $r \in \mathcal{R}$ is connected to a distinct electricity grid.
+The planning horizon spans $|\mathcal{T}| = 17{,}544$ hourly time steps (2024-01-01 to 2025-12-31 UTC).
+
+\textbf{Workload model.}
+Total compute demand $D$ (kWh) must be satisfied over the horizon.
+At each hour $t$, region $r$ can accept up to $C_{\max,r}$ kWh.
+A fraction of load is \emph{flexible}: it can be shifted in time or routed to another region.
+Latency-sensitive (inflexible) load is excluded.
+
+\textbf{Grid regions.}
+Regions are selected to represent structurally distinct grid types:
+
+\begin{table}[h]
+\centering
+\begin{tabularx}{\linewidth}{p{2.2cm}p{2.2cm}p{3.8cm}X}
+\toprule
+\textbf{Region} & \textbf{Zone ID} & \textbf{Grid character} & \textbf{CI profile} \\
+\midrule
+PJM       & US-MIDA-PJM & Coal/gas/nuclear mix; high variability & High, volatile \\
+NYISO     & US-NY-NYIS  & Hydro + nuclear; some gas peaking      & Medium, diurnal \\
+Finland   & FI          & Hydro + nuclear + wind; Nordic grid    & Low, seasonal \\
+Belgium   & BE          & High nuclear; European interconnect    & Medium-low \\
+Singapore & SG          & Near-total natural gas; isolated grid  & High, stable \\
+\bottomrule
+\end{tabularx}
+\caption{Five target regions and their grid characteristics. Singapore serves as a control case: low CI variability implies limited temporal shifting benefit.}
+\label{tab:regions}
+\end{table}
+
+\subsection{Data Sources}
+
+\textbf{Carbon intensity (CI).}
+Hourly CI values (gCO\textsubscript{2}eq/kWh) are retrieved from the ElectricityMaps API via the \texttt{/v3/carbon-intensity/past} endpoint.
+ElectricityMaps aggregates raw TSO measurements and applies ML models to produce a continuous, pre-validated series~\cite{radovanovic2023}.
+Coverage: 2024-01-01 00:00 to 2025-12-31 23:00 UTC; 17,544 observations per region; zero missing values.
+
+\textbf{Renewable fraction (RF).}
+Computed from the \texttt{/v3/power-breakdown/past} endpoint:
+\[
+  \mathrm{RF}_r(t) = \frac{\sum_{s \in \mathcal{S}_{\mathrm{clean}}} P_{r,s}(t)}{\sum_{s} P_{r,s}(t)},
+  \quad \mathcal{S}_{\mathrm{clean}} = \{\text{wind, solar, hydro, geothermal, biomass}\}
+\]
+Nuclear is excluded: it is low-carbon but dispatchable and non-intermittent, making it a distinct scheduling consideration.
+
+\textbf{Electricity price (budget parameter).}
+Per-region price series parameterize Constraint C3.
+Sources: PJM Locational Marginal Prices, NYISO day-ahead prices, ENTSO-E (Finland, Belgium), EMC spot prices (Singapore).
+\todo{Confirm data availability and add source citations.}
+
+\subsection{Key Indicators}
+
+\begin{itemize}[leftmargin=1.5em]
+  \item \textbf{CI$_r(t)$}: carbon cost of one kWh of compute in region $r$ at hour $t$. Primary optimization signal.
+  \item \textbf{RF$_r(t)$}: renewable fraction at time $t$. Enters the objective to incentivize variable renewable absorption.
+  \item \textbf{CV$_r$}: coefficient of variation of CI, $\sigma(\mathrm{CI}_r)/\mu(\mathrm{CI}_r)$. Computed post-hoc from the full 2024--2025 historical series; not an LP input. Used as a diagnostic to explain cross-regional differences in achievable savings after backtesting.
+\end{itemize}
+
+\subsection{Mathematical Formulation}
+
+\subsubsection*{Decision Variables}
+
+Let $x_{r,t} \geq 0$ denote the compute load (kWh) assigned to region $r$ at hour $t$.
+This single variable encodes both temporal scheduling and spatial routing simultaneously, enabling globally optimal joint allocation without a sequential two-phase decomposition.
+
+\subsubsection*{Objective Function}
+
+\begin{equation}
+  \min_{x} \quad \sum_{r \in \mathcal{R}} \sum_{t \in \mathcal{T}}
+    x_{r,t} \cdot \mathrm{CI}_r(t) \cdot \bigl(1 - \alpha \cdot \mathrm{RF}_r(t)\bigr)
+  \label{eq:objective}
+\end{equation}
+
+CI and RF are both deterministic input parameters, not decision variables. $\mathrm{CI}_r(t)$ is the direct carbon outcome: actual emissions per kWh consumed, and the primary optimization signal~\cite{radovanovic2023}. $\mathrm{RF}_r(t)$ is a supply-structure signal: the share of variable renewable generation. Two hours with the same CI can differ in RF — one driven by wind surplus, one by nuclear — and RF discriminates between them~\cite{radovanovic2023, liu2012}.
+
+The multiplicative discount form $(1 - \alpha \cdot \mathrm{RF}_r(t))$ is derived from OLS regression of CI on RF across all five regions (EDA, Section~10). The normalized slope $\beta_1/\overline{\mathrm{CI}}$ is more consistent across regions than the raw slope $\beta_1$, indicating that the RF effect scales proportionally with the ambient CI level rather than acting as a fixed absolute reduction. This supports the multiplicative form over an additive alternative. Parameter $\alpha \in [0, 1]$ is estimated as $\approx -\beta_1/\beta_0$ from the regression; a single shared value is used if the per-region estimates cluster closely, otherwise region-specific values apply. For any region where $|r(\mathrm{CI}, \mathrm{RF})| < 0.2$, $\alpha$ is set to zero.
+
+\subsubsection*{Constraints}
+
+\begin{align}
+  &\sum_{r \in \mathcal{R}} \sum_{t \in \mathcal{T}} x_{r,t} = D
+  \tag{C1} \label{eq:c1} \\[4pt]
+  &x_{r,t} \leq C_{\max,r} \quad \forall\, r,\; t
+  \tag{C2} \label{eq:c2} \\[4pt]
+  &\sum_{t \in \mathcal{T}} x_{r,t} \cdot P_r(t) \leq B_r \quad \forall\, r
+  \tag{C3} \label{eq:c3} \\[4pt]
+  &x_{r,t} \geq 0 \quad \forall\, r,\; t
+  \tag{C4} \label{eq:c4}
+\end{align}
+
+C1 enforces exact demand satisfaction~\cite{liu2012}.
+C2 bounds regional server capacity~\cite{liu2012}.
+C3 caps per-region electricity expenditure at budget $B_r$, with prices in local currency to avoid cross-region normalization~\cite{hao2024joint}. Electricity price data collection is in progress; C3 will be incorporated once sources for all five regions are confirmed.
+C4 is non-negativity.
+The current implementation uses C1, C2, and C4 as the operative constraints. C3 will be added once electricity price data is confirmed.
+
+The supervisor's VCC mechanism~\cite{colangelo2025} — which bounds the flexible component of load against a CI-indexed capacity ceiling — is a planned extension. It will be incorporated as an additional constraint once Google Cluster Trace data is available to generate the VCC series.
+
+\begin{table}[h]
+\centering
+\begin{tabularx}{\linewidth}{p{3.6cm}Xp{4cm}}
+\toprule
+\textbf{Component} & \textbf{Description} & \textbf{Reference} \\
+\midrule
+Objective \eqref{eq:objective}     & CI-weighted carbon cost signal          & \citet{radovanovic2023} \\
+RF weighting $(1-\alpha\cdot\mathrm{RF})$ & Multiplicative discount derived from EDA regression; motivation from \citet{radovanovic2023}, \citet{liu2012}; form original to this thesis & This thesis \\
+C1--C2                             & Demand and capacity bounds              & \citet{liu2012} \\
+C3 (budget)                        & Per-region electricity cost cap (pending) & \citet{hao2024joint} \\
+VCC (planned)                      & Flexible load ceiling, pending data     & \citet{colangelo2025} \\
+Joint LP structure                 & Spatio-temporal allocation              & \citet{riepin2024spatiotemporal}; \citet{attenni2024shifting} \\
+\bottomrule
+\end{tabularx}
+\caption{Component-level references for the mathematical formulation.}
+\label{tab:modelrefs}
+\end{table}
+
+\subsection{Implementation}
+
+\textbf{Solver.}
+The model is implemented in Python using the \texttt{gurobipy} interface to Gurobi 10.
+With $|\mathcal{R}|=5$ and $|\mathcal{T}|=17{,}544$, the LP has 87,720 continuous variables and approximately 105,264 constraints.
+\todo{Report actual solve time after implementation.}
+
+\textbf{Rolling-window backtesting.}
+The LP is solved in a rolling-window fashion with decision horizon $W$ and look-ahead $L$ to simulate real-world scheduling.
+\todo{Specify W and L; report sensitivity to window size.}
+
+\textbf{Data pipeline.}
+CI and RF inputs are loaded from pre-computed Parquet files.
+\todo{Electricity price source: specify and cite.}
+All inputs are aligned to hourly UTC timestamps before passing to the solver.
+Code and data are available at \url{https://github.com/NOSIEMPRE/AI-Carbon-Optimization}.
+
+\subsection{Heuristic Fallback}
+
+If rolling-window LP solve times are prohibitive, a greedy carbon-aware heuristic serves as fallback and as an additional baseline:
+
+\begin{algorithm}
+\caption{Greedy Carbon-Aware Shifting}
+\begin{algorithmic}[1]
+\REQUIRE Remaining demand $d$, window $[t_1, t_2]$, regions $\mathcal{R}$, CI, RF, capacities
+\STATE Compute $\hat{c}_{r,t} = \mathrm{CI}_r(t)(1 - \alpha \cdot \mathrm{RF}_r(t))$ for all $(r,t)$
+\STATE Sort $(r,t)$ pairs by $\hat{c}_{r,t}$ ascending
+\FOR{each $(r,t)$ in sorted order}
+  \STATE $x_{r,t} \leftarrow \min(d,\; C_{\max,r})$;\quad $d \leftarrow d - x_{r,t}$
+  \IF{$d = 0$} \STATE \textbf{break} \ENDIF
+\ENDFOR
+\end{algorithmic}
+\end{algorithm}
+
+\subsection{Assumptions and Scope}
+
+\begin{enumerate}[leftmargin=1.5em]
+  \item \textbf{Perfect historical information.} The LP uses the full 2024--2025 CI/RF series; results represent an upper bound on real-time savings.
+  \item \textbf{Homogeneous compute-to-power conversion.} PUE differences across regions are abstracted away.
+  \item \textbf{No cross-region data transfer costs.} Network latency is not modeled; the setup is appropriate for batch workloads.
+  \item \textbf{Stationary demand.} Total demand $D$ is fixed; load shedding is not considered.
+\end{enumerate}

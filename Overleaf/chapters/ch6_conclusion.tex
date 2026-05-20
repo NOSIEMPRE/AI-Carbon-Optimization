@@ -1,0 +1,42 @@
+\section{Conclusions}
+\label{sec:conclusion}
+
+\todo{Write after results and discussion are finalized. Target: 1.5--2 pages.}
+
+\subsection{Summary of Contributions}
+
+This thesis presented a unified joint linear programming model for carbon-intelligent workload scheduling across AI data centers in five geographically distinct grid regions.
+Three main contributions were made:
+
+\begin{enumerate}[leftmargin=1.5em]
+  \item \textbf{Unified joint LP.}
+        A single LP over region-hour decision variables simultaneously optimizes temporal and spatial workload allocation, with a novel RF weighting term $(1-\alpha\cdot\mathrm{RF}_r(t))$ that incentivizes renewable absorption beyond pure CI minimization.
+
+  \item \textbf{Empirical validation on two years of real grid data.}
+        The model was evaluated via rolling-window backtesting on 17,544 hours of hourly CI and RF data (2024--2025) across five structurally distinct regions, benchmarked against carbon-agnostic, greedy, and oracle baselines.
+
+  \item \textbf{CV as a regional screening metric.}
+        The coefficient of variation of CI was proposed and validated as a lightweight proxy for a region's scheduling opportunity, explaining cross-regional differences in achievable savings.
+\end{enumerate}
+
+\todo{Add 2--3 sentences of actual quantitative findings once results are available: e.g., ``The joint LP achieved X\% carbon savings vs.\ Y\% for greedy shifting, with temporal and spatial dimensions contributing Z\% and W\% respectively.''}
+
+\subsection{Answers to Research Questions}
+
+The central research question asks how a deterministic LP driven by CI, RF, and CV can minimize AI data center carbon emissions through joint spatio-temporal scheduling. The answer is affirmative: the model achieves provably optimal allocations under historical data, demonstrating that mathematical programming outperforms heuristic carbon-aware policies.
+\todo{Quantify once results are available.}
+
+\subsection{Directions for Future Work}
+
+\begin{enumerate}[leftmargin=1.5em]
+  \item \textbf{Stochastic extension.}
+        Replace deterministic CI inputs with probabilistic forecasts to build a two-stage or robust LP that hedges against forecast error.
+  \item \textbf{Real-time deployment.}
+        Approximate the LP with a surrogate model or reinforcement learning policy for online scheduling~\cite{colangelo2025}.
+  \item \textbf{Deeper electricity price modeling.}
+        Incorporate region-specific market mechanisms (PJM LMPs, Nord Pool, USEP) directly into the objective rather than as a budget cap.
+  \item \textbf{Embodied carbon.}
+        Extend scope to hardware manufacturing emissions, not only operational emissions.
+  \item \textbf{Heterogeneous workloads.}
+        Model job types with distinct delay tolerances, enabling a richer scheduling problem closer to production AI cluster management.
+\end{enumerate}

@@ -1,0 +1,60 @@
+\section{Results}
+\label{sec:results}
+
+\todo{This chapter will be completed after the model is implemented and backtesting is run.}
+
+\subsection{Experimental Setup}
+
+\textbf{Baselines.}
+\begin{enumerate}[leftmargin=1.5em]
+  \item \textbf{Carbon-Agnostic}: load distributed uniformly across regions and hours, ignoring CI.
+  \item \textbf{Greedy Temporal}: flexible load pushed to lowest-CI hours within each region; no spatial routing.
+  \item \textbf{LP (this thesis)}: joint spatio-temporal LP with RF weighting ($\alpha$ tuned via sensitivity analysis).
+  \item \textbf{Oracle}: LP with perfect future CI/RF knowledge (theoretical upper bound).
+\end{enumerate}
+
+\textbf{Metrics.}
+\begin{itemize}[leftmargin=1.5em]
+  \item Carbon savings (\%) relative to Carbon-Agnostic baseline.
+  \item Optimality gap (\%) of LP vs.\ Oracle.
+  \item Temporal vs.\ spatial decomposition: marginal savings from each dimension via counterfactual solves.
+\end{itemize}
+
+\subsection{Overall Carbon Savings by Region}
+
+\todo{Fill after backtesting is complete.}
+
+\begin{table}[h]
+\centering
+\begin{tabularx}{\linewidth}{p{2cm}p{1.5cm}XXX}
+\toprule
+\textbf{Region} & \textbf{CV} & \textbf{Greedy} & \textbf{LP} & \textbf{Oracle} \\
+\midrule
+PJM       & \todo{} & \todo{}\% & \todo{}\% & \todo{}\% \\
+NYISO     & \todo{} & \todo{}\% & \todo{}\% & \todo{}\% \\
+Finland   & \todo{} & \todo{}\% & \todo{}\% & \todo{}\% \\
+Belgium   & \todo{} & \todo{}\% & \todo{}\% & \todo{}\% \\
+Singapore & \todo{} & \todo{}\% & \todo{}\% & \todo{}\% \\
+\midrule
+\textbf{Joint} & -- & \todo{}\% & \todo{}\% & \todo{}\% \\
+\bottomrule
+\end{tabularx}
+\caption{Carbon savings relative to Carbon-Agnostic baseline. LP = proposed joint optimization; Oracle = perfect foresight upper bound.}
+\label{tab:results_main}
+\end{table}
+
+\subsection{Temporal vs.\ Spatial Decomposition}
+
+\todo{Report marginal contribution of temporal shifting vs.\ spatial routing. Method: solve (a) temporal-only LP (fixed region allocation) and (b) spatial-only LP (fixed time allocation) as counterfactuals; the joint LP saving minus each counterfactual saving gives the marginal contribution of the other dimension.}
+
+\subsection{Sensitivity to $\alpha$ (RF Weighting)}
+
+\todo{Report carbon savings and renewable absorption rate for $\alpha \in \{0, 0.25, 0.5, 0.75, 1.0\}$. Expected: at $\alpha=0$ savings are purely CI-driven; increasing $\alpha$ trades a small amount of carbon savings for higher renewable absorption.}
+
+\subsection{CV as a Predictor of Scheduling Opportunity}
+
+\todo{Scatter plot: CV$_r$ (x-axis) vs.\ LP carbon savings$_r$ (y-axis) across five regions. Expected: positive correlation; Singapore confirms the low-CV/low-gain hypothesis.}
+
+\subsection{Solver Performance}
+
+\todo{Report: full-horizon LP solve time; rolling-window average solve time per window; whether heuristic fallback was required.}

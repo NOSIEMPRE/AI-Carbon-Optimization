@@ -1,0 +1,61 @@
+\section{Literature Review}
+\label{sec:literature}
+
+\subsection{Carbon-Aware Computing}
+
+The idea of scheduling computation to follow clean energy was formalized by \citet{radovanovic2023}, who describe Google's production system for shifting flexible datacenter workloads across hours based on real-time CI signals from the grid.
+Their carbon-aware computing framework demonstrated measurable reductions in operational emissions without degrading service quality, establishing CI as the primary scheduling signal.
+\citet{hanafy2025} extend this to multi-cluster cloud environments with CarbonFlex, which provisions and schedules jobs across heterogeneous clusters using carbon forecasts.
+
+\subsection{Temporal Workload Shifting}
+
+Temporal shifting, the practice of delaying or advancing flexible jobs to lower-CI hours, is the most widely studied form of carbon-aware scheduling.
+\citet{wiesner2024limitations} provide a systematic evaluation of temporal shifting across European and US grids, quantifying the achievable carbon savings under realistic delay budgets and showing that gains are highly region-dependent.
+\citet{xu2025green} propose GREEN, a carbon-efficient scheduling system for GPU clusters at NSDI 2025, demonstrating that temporal shifting of training workloads can reduce carbon by up to 30\% in high-variability grids.
+
+The key finding across this literature is that temporal shifting is most effective in grids with high CI variability, a result this thesis formalizes through the CV metric.
+
+\subsection{Spatial Workload Shifting}
+
+Spatial shifting routes workloads to geographically distributed datacenters with lower current CI.
+\citet{liu2012} establish a foundational LP model for renewable and cooling-aware workload management across multiple datacenters, incorporating demand satisfaction, capacity, and electricity price constraints; this formulation provides the structural basis for the model developed in this thesis.
+\citet{li2025llm} apply spatial shifting specifically to LLM inference across geo-distributed cloud datacenters, jointly optimizing carbon and water footprints.
+
+\subsection{Joint Spatio-Temporal Approaches}
+
+The most relevant prior work treats temporal and spatial dimensions jointly.
+\citet{riepin2024spatiotemporal} develop an LP-based optimization model for a network of geographically distributed datacenters, using 24/7 Carbon-Free Energy (CFE) fraction signals to drive both spatial routing and temporal load flexibility.
+Their finding that spatial shifting yields maximum benefit for datacenters 300--400\,km apart informs this thesis's region selection.
+\citet{attenni2024shifting} extend joint optimization to simultaneously reduce carbon, water, and land-use footprints of cloud workloads, using a MILP scheduler with delay-tolerance constraints.
+\citet{asadov2025review} provide a comprehensive review of carbon-aware spatio-temporal shifting algorithms and identify the rarity of true joint optimization as a key gap.
+
+\subsection{Grid-Interactive Data Centers and VCC}
+
+\citet{colangelo2025} propose treating AI data centers as grid-interactive assets through Virtual Capacity Curves (VCC), which encode the maximum flexible load a datacenter can shift as a function of current CI.
+This mechanism, developed in the supervisor's research group, is incorporated as a planned constraint extension in this thesis, pending the availability of the corresponding workload trace data.
+
+\subsection{Positioning of This Thesis}
+
+Table~\ref{tab:litreview} summarizes the key prior work and highlights the gap this thesis addresses.
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{lccccl}
+\toprule
+\textbf{Paper} & \textbf{Temporal} & \textbf{Spatial} & \textbf{Joint LP} & \textbf{RF signal} & \textbf{Evaluation} \\
+\midrule
+\citet{radovanovic2023}      & \checkmark & --         & --         & --         & Production system \\
+\citet{liu2012}              & \checkmark & \checkmark & \checkmark & \checkmark & Simulation \\
+\citet{wiesner2024limitations} & \checkmark & \checkmark & --       & --         & Empirical study \\
+\citet{riepin2024spatiotemporal} & \checkmark & \checkmark & \checkmark & \checkmark & LP + real data \\
+\citet{attenni2024shifting}   & \checkmark & \checkmark & \checkmark & --         & MILP \\
+\citet{xu2025green}          & \checkmark & --         & --         & --         & GPU cluster \\
+\textbf{This thesis}         & \checkmark & \checkmark & \checkmark & \checkmark & LP + 2yr real data \\
+\bottomrule
+\end{tabular}
+\caption{Comparison of related work. This thesis is the first to combine a joint LP with an explicit RF weighting term evaluated on two years of multi-region real grid data.}
+\label{tab:litreview}
+\end{table}
+
+The gap this thesis addresses is the absence of a provably optimal joint LP that combines an RF-weighted objective with rigorous backtesting on real 2024--2025 grid data across five structurally distinct regions. No prior work brings all three elements together in a single formulation.

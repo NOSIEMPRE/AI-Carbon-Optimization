@@ -1,0 +1,85 @@
+\section{Problem Description}
+\label{sec:problem}
+
+\subsection{System Model}
+
+We consider a cloud service operator managing a portfolio of \emph{delay-tolerant} AI workloads distributed across $|\mathcal{R}| = 5$ geographically distributed datacenter regions.
+Each region $r \in \mathcal{R}$ is connected to a distinct electricity grid with its own carbon intensity profile.
+The planning horizon spans $|\mathcal{T}| = 17{,}544$ hourly time steps covering calendar years 2024 and 2025.
+
+\textbf{Workload model.}
+Total compute demand $D$ (in kWh) must be satisfied over the planning horizon.
+At each hour $t$, each region $r$ can accept up to $C_{\max,r}$ kWh of compute load.
+A fraction of the load is \emph{flexible}: it can be shifted in time (within a delay budget) or routed to a different region.
+Inflexible (latency-sensitive) load is excluded from the scheduling decision.
+
+\textbf{Grid regions.}
+The five regions are selected to represent structurally distinct grid types:
+
+\begin{table}[h]
+\centering
+\begin{tabular}{llp{5.5cm}l}
+\toprule
+\textbf{Region} & \textbf{Zone ID} & \textbf{Grid character} & \textbf{CI profile} \\
+\midrule
+PJM       & US-MIDA-PJM & Coal/gas/nuclear mix; high demand variability & High, volatile \\
+NYISO     & US-NY-NYIS  & Hydro + nuclear dominant; some gas peaking & Medium, diurnal \\
+Finland   & FI          & Hydro + nuclear + wind; Nordic interconnect  & Low, seasonal \\
+Belgium   & BE          & High nuclear share; European grid coupling  & Medium-low \\
+Singapore & SG          & Near-total natural gas; isolated island grid & High, stable \\
+\bottomrule
+\end{tabular}
+\caption{Target grid regions and their structural characteristics.}
+\label{tab:regions}
+\end{table}
+
+Singapore serves as a critical control case: its low CI variability (CV $\approx$ \todo{fill after EDA}) means temporal shifting yields minimal benefit, validating that the model correctly assigns near-zero temporal gains to low-variability grids.
+
+\subsection{Data}
+
+\textbf{Carbon intensity (CI).}
+Hourly CI values (gCO\textsubscript{2}eq/kWh) are retrieved from the ElectricityMaps API via the \texttt{/v3/carbon-intensity/past} endpoint.
+ElectricityMaps aggregates raw grid measurements from Transmission System Operators (TSOs) and applies machine-learning models to fill short gaps, producing a continuous, pre-validated hourly series~\cite{radovanovic2023}.
+The dataset covers 2024-01-01 00:00 UTC to 2025-12-31 23:00 UTC, yielding 17,544 observations per region with no missing values.
+
+\textbf{Renewable fraction (RF).}
+Hourly RF values are computed from the \texttt{/v3/power-breakdown/past} endpoint as:
+\[
+  \mathrm{RF}_r(t) = \frac{\sum_{s \in \mathcal{S}_{\mathrm{clean}}} P_{r,s}(t)}{\sum_{s} P_{r,s}(t)},
+  \quad \mathcal{S}_{\mathrm{clean}} = \{\text{wind, solar, hydro, geothermal, biomass}\}
+\]
+Nuclear is excluded from the renewable set: while low-carbon, it is dispatchable and not intermittent, making it a distinct scheduling consideration.
+
+\textbf{Electricity price (budget parameter).}
+Per-region electricity price series are used to parameterize the budget constraint C4 (Section~\ref{sec:formulation}).
+Sources: PJM Locational Marginal Prices (LMPs), NYISO day-ahead prices, ENTSO-E (Finland and Belgium), and EMC spot prices (Singapore).
+\todo{Confirm data availability and add source URLs.}
+
+\subsection{Key Indicators}
+
+Three indicators drive the model and analysis:
+
+\begin{itemize}[leftmargin=1.5em]
+  \item \textbf{CI$_r(t)$}: the carbon cost of one kWh of compute in region $r$ at hour $t$.
+        This is the primary optimization signal.
+  \item \textbf{RF$_r(t)$}: the renewable fraction of power consumption at time $t$.
+        Incorporated in the objective to incentivize absorption of variable renewables beyond simply targeting low-CI periods.
+  \item \textbf{CV$_r$}: the coefficient of variation of CI for region $r$, computed as $\sigma(\mathrm{CI}_r) / \mu(\mathrm{CI}_r)$ over the full horizon.
+        Used as a summary diagnostic of each region's scheduling opportunity.
+\end{itemize}
+
+\subsection{Assumptions}
+
+\begin{enumerate}[leftmargin=1.5em]
+  \item \textbf{Perfect historical information.}
+        The LP is solved with full knowledge of the historical CI and RF series (backtesting mode).
+        This yields an upper bound on achievable carbon savings; real-time deployment would require CI forecasts.
+  \item \textbf{Separable compute-to-power conversion.}
+        One unit of compute load draws one unit of power, abstracting away PUE (Power Usage Effectiveness) differences across regions.
+        Regional PUE heterogeneity is a direction for future work.
+  \item \textbf{No cross-region data transfer cost.}
+        Network latency and data movement costs are not modeled; the model is appropriate for batch workloads where data locality is not binding.
+  \item \textbf{Stationary demand $D$.}
+        Total demand is fixed and must be satisfied in full.
+        Load shedding or demand reduction are not considered.
+\end{enumerate}

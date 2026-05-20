@@ -1,0 +1,65 @@
+\section{Computational Results}
+\label{sec:results}
+
+\todo{This chapter will be completed after the model is implemented and backtesting is run. The structure below is the intended layout.}
+
+\subsection{Experimental Setup}
+
+\textbf{Baselines.}
+Four schedules are evaluated:
+\begin{enumerate}[leftmargin=1.5em]
+  \item \textbf{Carbon-Agnostic}: load distributed uniformly across regions and hours, ignoring CI entirely.
+  \item \textbf{Greedy Temporal}: at each decision window, flexible load is pushed to the lowest-CI hours within the same region. No spatial shifting.
+  \item \textbf{LP (this thesis)}: joint spatio-temporal LP with RF weighting.
+  \item \textbf{Oracle}: LP solved with perfect knowledge of future CI/RF (theoretical upper bound on savings).
+\end{enumerate}
+
+\textbf{Metrics.}
+\begin{itemize}[leftmargin=1.5em]
+  \item \textbf{Total carbon savings (\%)} relative to Carbon-Agnostic baseline.
+  \item \textbf{Optimality gap (\%)} of LP vs.\ Oracle.
+  \item \textbf{Temporal vs.\ spatial decomposition}: marginal savings from each dimension, obtained by solving constrained counterfactuals (spatial-only and temporal-only).
+\end{itemize}
+
+\subsection{Overall Carbon Savings}
+
+\todo{Table: Carbon savings (\%) for each region and each method. Example structure:}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{lcccc}
+\toprule
+\textbf{Region} & \textbf{CV} & \textbf{Greedy} & \textbf{LP} & \textbf{Oracle} \\
+\midrule
+PJM       & \todo{} & \todo{}\% & \todo{}\% & \todo{}\% \\
+NYISO     & \todo{} & \todo{}\% & \todo{}\% & \todo{}\% \\
+Finland   & \todo{} & \todo{}\% & \todo{}\% & \todo{}\% \\
+Belgium   & \todo{} & \todo{}\% & \todo{}\% & \todo{}\% \\
+Singapore & \todo{} & \todo{}\% & \todo{}\% & \todo{}\% \\
+\midrule
+\textbf{Joint (all regions)} & -- & \todo{}\% & \todo{}\% & \todo{}\% \\
+\bottomrule
+\end{tabular}
+\caption{Carbon savings relative to Carbon-Agnostic baseline for each region and scheduling method.}
+\label{tab:results_main}
+\end{table}
+
+\subsection{Temporal vs.\ Spatial Decomposition}
+
+\todo{Bar chart or table showing marginal contribution of temporal shifting vs.\ spatial routing in the LP solution. Interpretation: which regions benefit more from spatial routing (large CI cross-regional spread) vs.\ temporal shifting (high within-region CV)?}
+
+\subsection{Effect of the RF Weighting Parameter $\alpha$}
+
+\todo{Sensitivity analysis: carbon savings vs.\ $\alpha \in \{0, 0.25, 0.5, 0.75, 1.0\}$.
+Show that $\alpha > 0$ increases renewable absorption and reduces carbon savings slightly (due to occasional tradeoff between low-CI nuclear and high-RF wind).
+Report the $\alpha$ value that Pareto-dominates.}
+
+\subsection{CV as a Predictor of Scheduling Opportunity}
+
+\todo{Scatter plot: CV (x-axis) vs.\ LP carbon savings (y-axis) across regions.
+Expected finding: positive correlation, with Singapore confirming the low-CV / low-savings hypothesis.
+This validates CV as a lightweight screening metric.}
+
+\subsection{Solver Performance}
+
+\todo{Report: full-horizon LP solve time; rolling-window solve time per window; whether heuristic fallback was needed.}

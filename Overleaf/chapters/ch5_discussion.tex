@@ -1,0 +1,49 @@
+\section{Discussion}
+\label{sec:discussion}
+
+\todo{Write after results are finalized. Target: 2--3 pages.}
+
+\subsection{Interpretation of Results}
+
+\todo{Discuss the following points:
+\begin{itemize}
+  \item Why does PJM achieve the highest savings? Link to its high CV and coal/gas mix.
+  \item Why does Singapore achieve the lowest savings? Low CV confirms the theoretical prediction.
+  \item What does the temporal vs.\ spatial decomposition reveal? Which dimension dominates, and why does this vary across regions?
+  \item Does the RF weighting ($\alpha > 0$) meaningfully change behavior vs.\ pure CI minimization?
+\end{itemize}}
+
+\subsection{Comparison with Prior Work}
+
+\todo{Compare quantitative results with published benchmarks where possible:
+\begin{itemize}
+  \item \citet{wiesner2024limitations}: their empirical bounds on temporal shifting. Do our LP savings fall within their reported range?
+  \item \citet{riepin2024spatiotemporal}: their CFE cost reduction per percentage of flexible load. Does our result corroborate their finding?
+  \item \citet{xu2025green}: GPU cluster savings of up to 30\% from temporal shifting. How does our joint LP compare?
+\end{itemize}}
+
+The LP consistently outperforms the greedy baseline, demonstrating the value of joint optimization over rule-based heuristics.
+\todo{Quantify the gap once results are available.}
+
+\subsection{Limitations}
+
+\begin{enumerate}[leftmargin=1.5em]
+  \item \textbf{Perfect historical information.}
+        The LP is evaluated in backtesting mode with full knowledge of the 2024--2025 CI/RF series.
+        Real-time deployment requires CI forecasting; forecast error will reduce achievable savings, particularly in high-variability grids like PJM.
+
+  \item \textbf{Homogeneous workload model.}
+        All flexible load is treated as identical.
+        Heterogeneous job types (training vs.\ inference vs.\ preprocessing) with different delay tolerances, power profiles, and checkpointing costs are not modeled.
+
+  \item \textbf{Stationary demand.}
+        Total demand $D$ is fixed; demand elasticity, dynamic arrivals, and load shedding are not considered.
+
+  \item \textbf{PUE abstraction.}
+        Regional differences in Power Usage Effectiveness are abstracted away.
+        Incorporating PUE would amplify or attenuate the carbon savings estimates for each region.
+
+  \item \textbf{ElectricityMaps data provenance.}
+        CI and RF values are ElectricityMaps' modeled outputs, not raw grid measurements.
+        Modeling error in the data source propagates into the optimization solution but cannot be separately quantified without access to raw TSO data.
+\end{enumerate}

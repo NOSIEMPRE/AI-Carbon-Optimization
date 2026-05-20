@@ -1,0 +1,117 @@
+\documentclass[12pt, a4paper]{article}
+
+% ── Packages ──────────────────────────────────────────────────────────────────
+\usepackage[margin=2.5cm]{geometry}
+\usepackage{mathptmx}              % Times New Roman (text + math)
+\usepackage{amsmath, amssymb}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{tabularx}
+\usepackage{hyperref}
+\usepackage[numbers, sort&compress]{natbib}
+\usepackage{setspace}
+\usepackage{titlesec}
+\usepackage{parskip}
+\usepackage{xcolor}
+\usepackage{fancyhdr}
+\usepackage{graphicx}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{enumitem}
+\usepackage{algorithm}
+\usepackage{algorithmic}
+\usepackage{microtype}
+
+% ── Colors ────────────────────────────────────────────────────────────────────
+\definecolor{ieblue}{RGB}{13, 27, 94}
+\definecolor{iegreen}{RGB}{126, 200, 58}
+\definecolor{todored}{RGB}{180, 40, 40}
+
+% ── TODO helper ───────────────────────────────────────────────────────────────
+\newcommand{\todo}[1]{\textcolor{todored}{\textbf{[TODO: #1]}}}
+
+% ── Section formatting ────────────────────────────────────────────────────────
+\titleformat{\section}{\large\bfseries\color{ieblue}}{\thesection.}{0.5em}{}[\vspace{-4pt}\rule{\linewidth}{1pt}]
+\titleformat{\subsection}{\normalsize\bfseries\color{ieblue}}{\thesubsection}{0.5em}{}
+\titleformat{\subsubsection}{\normalsize\itshape\color{ieblue}}{\thesubsubsection}{0.5em}{}
+
+% ── Header / Footer ───────────────────────────────────────────────────────────
+\pagestyle{fancy}
+\fancyhf{}
+\lhead{\small\color{gray} Carbon-Intelligent Workload Scheduling for AI Data Centers}
+\rhead{\small\color{gray} Yaxin Wu · IE University}
+\rfoot{\small\thepage}
+\renewcommand{\headrulewidth}{0.3pt}
+
+% ── Hyperref ──────────────────────────────────────────────────────────────────
+\hypersetup{
+  colorlinks = true,
+  linkcolor  = ieblue,
+  citecolor  = ieblue,
+  urlcolor   = ieblue
+}
+
+% ── Line spacing: 1.5 as required ─────────────────────────────────────────────
+\setstretch{1.5}
+
+% ─────────────────────────────────────────────────────────────────────────────
+\begin{document}
+
+% ── Title page ────────────────────────────────────────────────────────────────
+\begin{titlepage}
+  \centering
+  \vspace*{3cm}
+  {\color{ieblue}\rule{\linewidth}{2pt}}\\[0.4cm]
+  {\LARGE\bfseries Carbon-Intelligent Workload Scheduling\\[0.3em]
+   for AI Data Centers:\\[0.3em]
+   A Deterministic Optimization Approach}\\[0.4cm]
+  {\color{ieblue}\rule{\linewidth}{2pt}}\\[2cm]
+  {\large Yaxin (Isabel) Wu}\\[0.4cm]
+  {\normalsize Master of Business Analytics \& Big Data\\
+   IE University, Madrid}\\[1.5cm]
+  {\normalsize Supervisor: Prof.\ Bissan Ghaddar}\\[2cm]
+  {\normalsize May 2026}\\[1.5cm]
+  \vfill
+  {\small \textit{Submitted in partial fulfillment of the requirements for the\\
+  Master of Business Analytics \& Big Data degree.}}\\[1cm]
+  {\small \textbf{AI Use Declaration:} Generative AI tools (Claude Code) were used to assist with literature search, LaTeX formatting, and code scaffolding. All research questions, analytical decisions, model formulation, interpretation of results, and written arguments are the author's own.}
+\end{titlepage}
+
+% ── Abstract ──────────────────────────────────────────────────────────────────
+\newpage
+\section*{Abstract}
+\addcontentsline{toc}{section}{Abstract}
+\todo{Write after results are available. Target: 150--250 words covering (1) motivation, (2) method, (3) key result, (4) contribution.}
+
+\bigskip
+\noindent\textbf{Keywords:} carbon-aware scheduling, AI data centers, linear programming, spatio-temporal workload shifting, renewable energy fraction, carbon intensity.
+
+% ── Table of contents ─────────────────────────────────────────────────────────
+\newpage
+\tableofcontents
+
+% ── Chapters ──────────────────────────────────────────────────────────────────
+\newpage
+\input{chapters/ch1_introduction}
+
+\newpage
+\input{chapters/ch2_literature}
+
+\newpage
+\input{chapters/ch3_methodology}
+
+\newpage
+\input{chapters/ch4_results}
+
+\newpage
+\input{chapters/ch5_discussion}
+
+\newpage
+\input{chapters/ch6_conclusion}
+
+% ── References ────────────────────────────────────────────────────────────────
+\newpage
+\bibliographystyle{plainnat}
+\bibliography{references}
+
+\end{document}

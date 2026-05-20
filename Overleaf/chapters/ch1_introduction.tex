@@ -1,0 +1,49 @@
+\section{Introduction}
+
+\subsection{Motivation}
+
+The rapid growth of artificial intelligence has made data centers one of the fastest-growing sources of electricity demand worldwide.
+Training a large neural network can emit as much carbon dioxide as five times the lifetime emissions of an average car~\cite{strubell2019energy}, and hyperscale AI clusters now draw hundreds of megawatts continuously.
+At the same time, electricity grids vary dramatically in their carbon intensity (CI), measured in grams of CO\textsubscript{2}-equivalent per kilowatt-hour, and this variation plays out both across geographic regions and across hours of the day.
+Finland's grid, heavily supplied by hydropower and nuclear, sustains a CI below 100\,gCO\textsubscript{2}eq/kWh on most days; Singapore's near-total reliance on natural gas keeps its CI above 400\,gCO\textsubscript{2}eq/kWh at all times.
+Within a single region, CI can swing by more than 50\% between peak-renewable afternoon hours and high-demand evenings.
+
+This variability creates a scheduling opportunity.
+Batch AI workloads such as training jobs and data preprocessing are often \emph{delay-tolerant}: a job that can start anytime within a four-hour window can be directed to whichever region-hour pairing offers the lowest carbon cost.
+Carbon-aware computing, the practice of shifting flexible workloads toward low-CI windows and locations, has been identified by major cloud providers as a practical lever for reducing operational emissions~\cite{radovanovic2023}.
+
+Existing approaches, however, treat \emph{temporal} shifting (when to run) and \emph{spatial} shifting (where to run) as separate decisions, or rely on greedy heuristics rather than provably optimal solutions.
+This thesis addresses both gaps.
+
+\subsection{Research Question}
+
+\begin{quote}
+\textit{How can a deterministic mathematical programming model, using carbon intensity (CI) and renewable energy fraction (RF) as scheduling signals, minimize AI data center carbon emissions through joint temporal and spatial workload scheduling across five grid regions?}
+\end{quote}
+
+\subsection{Contributions}
+
+This thesis makes three contributions:
+
+\begin{enumerate}[leftmargin=1.5em]
+  \item \textbf{Unified joint LP formulation.}
+        A single linear program over region-hour decision variables $x_{r,t}$ simultaneously optimizes temporal and spatial workload allocation, avoiding the suboptimality of two-phase approaches.
+        The objective function incorporates a novel RF weighting term $(1 - \alpha \cdot \mathrm{RF}_r(t))$ that incentivizes renewable absorption beyond simply chasing low-CI moments~\cite{liu2012}.
+
+  \item \textbf{Empirical validation on two years of real grid data.}
+        The model is evaluated via rolling-window backtesting on 17,544 hours of hourly CI and RF data (2024--2025) retrieved from the ElectricityMaps API for five regions: PJM (US), NYISO (US), Finland, Belgium, and Singapore.
+        Carbon savings are benchmarked against three baselines: carbon-agnostic scheduling, greedy temporal shifting, and an oracle with perfect foresight.
+
+  \item \textbf{Post-hoc regional opportunity analysis via CV.}
+        After backtesting, the coefficient of variation of CI (CV $= \sigma/\mu$) is computed from the historical series and used as a diagnostic metric to explain cross-regional differences in achievable savings.
+        CV is not an LP input; it is a summary statistic applied post-hoc to interpret why high-variability grids such as PJM benefit substantially more from shifting than low-variability grids such as Singapore.
+\end{enumerate}
+
+\subsection{Thesis Structure}
+
+The remainder of this thesis is organized as follows.
+Section~\ref{sec:literature} reviews the literature on carbon-aware computing and workload scheduling, and positions this work relative to prior contributions.
+Section~\ref{sec:methodology} describes the system model, data sources, mathematical formulation, and solver implementation.
+Section~\ref{sec:results} reports computational results and backtesting analysis.
+Section~\ref{sec:discussion} interprets the results, compares against prior work, and discusses limitations.
+Section~\ref{sec:conclusion} concludes with directions for future work.

@@ -7,3 +7,10 @@ __pycache__/
 Overleaf.zip
 *.parquet
 notebooks/.ipynb_checkpoints/
+Overleaf/build/
+Overleaf_thesis.zip
+.vscode/
+Essays/*.pdf
+data/fetch_log.txt
+Presentation_IE_BissanGhaddar_capstone.pdf
+Research_Capstone_KickOff_May_2026.pdf
