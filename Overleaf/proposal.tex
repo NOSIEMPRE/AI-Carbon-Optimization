@@ -13,6 +13,8 @@
 \usepackage{parskip}
 \usepackage{xcolor}
 \usepackage{fancyhdr}
+\usepackage{graphicx}
+\graphicspath{{figures/results/}{figures/analysis/}}
 
 % ── Colors ────────────────────────────────────────────────────────────────────
 \definecolor{ieblue}{RGB}{13, 27, 94}
@@ -72,7 +74,7 @@ The supervisor defines the overall pipeline (VCC generation, workload classifica
 
 \begin{quote}
   \itshape
-  How can a deterministic mathematical programming model, using carbon intensity (CI) and renewable energy fraction (RF) as scheduling signals, minimize AI data center carbon emissions through joint temporal and spatial workload scheduling across five grid regions?
+  How can a deterministic mathematical programming model, using carbon intensity (CI) and carbon-free energy fraction (CFE) as scheduling signals, minimize AI data center carbon emissions through joint temporal and spatial workload scheduling across five grid regions?
 \end{quote}
 
 % ── 3. Data ───────────────────────────────────────────────────────────────────
@@ -83,17 +85,16 @@ The supervisor defines the overall pipeline (VCC generation, workload classifica
 \begin{table}[h]
 \centering\small
 \renewcommand{\arraystretch}{1.3}
-\begin{tabularx}{\linewidth}{p{4.8cm}Xp{1.9cm}p{1.7cm}}
+\begin{tabularx}{\linewidth}{lXll}
 \toprule
 \textbf{Signal} & \textbf{Source} & \textbf{Granularity} & \textbf{Period} \\
 \midrule
-Carbon Intensity CI (gCO\textsubscript{2}eq/kWh) & ElectricityMaps API & Hourly & 2024--2025 \\
-Renewable Fraction RF (\%) & ElectricityMaps API & Hourly & 2024--2025 \\
-Electricity Price (constraint) & PJM / NYISO / ENTSO-E / EMC & Hourly & 2024--2025 \\
+CI (gCO\textsubscript{2}eq/kWh) & ElectricityMaps \texttt{carbonIntensity} & Hourly & 2024--2025 \\
+CFE fraction & ElectricityMaps \texttt{powerBreakdown} (wind + solar + hydro + nuclear) & Hourly & 2024--2025 \\
 Workload traces & Google Cluster Traces & Per-job & -- \\
 \bottomrule
 \end{tabularx}
-\caption{Data sources and coverage. CI and RF are retrieved via the ElectricityMaps
+\caption{Data sources and coverage. CI and CFE are retrieved via the ElectricityMaps
 \texttt{carbonIntensity} and \texttt{powerBreakdown} API fields respectively.}
 \end{table}
 
@@ -124,21 +125,19 @@ regions benefit equally from carbon-aware scheduling.}
 \paragraph{Carbon Intensity (CI).}
 The primary optimization signal, measured in gCO\textsubscript{2}eq/kWh and fully comparable across regions. Retrieved directly from the ElectricityMaps \texttt{carbonIntensity} field \citep{radovanovic2023}.
 
-\paragraph{Renewable Fraction (RF).}
-RF measures the supply-side structure of the grid: the share of generation from variable renewables (wind, solar, hydro), computed from the ElectricityMaps \texttt{powerBreakdown} field \citep{radovanovic2023}. Two hours with identical CI can have very different RF: one driven by wind surplus, one by nuclear baseload. RF discriminates between these cases, providing a complementary signal to CI. The specific form in which RF enters the objective is derived from OLS regression of CI on RF across all five regions (EDA, Section~10); the multiplicative discount $\mathrm{CI}_r(t)\cdot(1-\alpha\cdot\mathrm{RF}_r(t))$ is supported by the finding that the normalized slope $\beta_1/\overline{\mathrm{CI}}$ is more consistent across regions than the raw slope \citep{liu2012}.
+\paragraph{Carbon-Free Energy Fraction (CFE).}
+CFE measures the share of electricity consumption met by carbon-free sources: all variable renewables (wind, solar, hydro) \emph{plus} nuclear, computed from the ElectricityMaps \texttt{powerBreakdown} field. CFE is strictly broader than the Renewable Fraction (RF): a grid running on nuclear baseload has RF $\approx 0$ but CFE $\approx 1$, while a gas-heavy grid has both near zero. This distinction matters for scheduling: two hours with identical CI may have very different CFE, revealing whether low emissions stem from a dispatched clean asset (stable, foreseeable) or from wind surplus (variable, curtailment-sensitive). EDA regression of CI on CFE across all five regions (Section~10) determines whether the multiplicative discount $\mathrm{CI}_r(t)\cdot(1-\alpha\cdot\mathrm{CFE}_r(t))$ is appropriate or whether the relationship is better captured by an additive or region-specific form; the final functional form is data-driven.
 
-\paragraph{Electricity Price.}
-Treated as a per-region budget constraint rather than an objective term, preserving model generalizability across electricity markets with incomparable absolute prices (PJM LMP, Nord Pool, USEP). Deep integration with market mechanisms is left as future work.
 
 % ── 5. Methodology ────────────────────────────────────────────────────────────
 \section{Methodology}
 
-The core methodology is deterministic optimization. Historical CI and RF data are used directly as model inputs, and evaluation is performed via backtesting over a two-year historical window.
+The core methodology is deterministic optimization. Historical CI and CFE data are used directly as model inputs, and evaluation is performed via backtesting over a two-year historical window.
 
 {\small\[
-  \underbrace{\text{Historical CI/RF (ElectricityMaps)}}_{\text{Input}}
+  \underbrace{\text{Historical CI/CFE (ElectricityMaps)}}_{\text{Input}}
   \;\longrightarrow\;
-  \underbrace{\text{Deterministic Optimization (Gurobi LP)}}_{\text{Core contribution}}
+  \underbrace{\text{Deterministic Optimization (LP via HiGHS)}}_{\text{Core contribution}}
   \;\longrightarrow\;
   \underbrace{\text{Backtesting vs.\ baselines}}_{\text{Evaluation}}
 \]}
@@ -150,31 +149,122 @@ Rather than separating temporal and spatial shifting into sequential phases, the
 \subsubsection*{Objective Function}
 
 \begin{equation}
-  \min \sum_{r \in \mathcal{R}} \sum_{t \in \mathcal{T}}
-    x_{r,t} \cdot \text{CI}_r(t) \cdot \bigl(1 - \alpha \cdot \text{RF}_r(t)\bigr)
+  \min_{x_{r,t},\,M} \left\{
+    \underbrace{\sum_{r \in \mathcal{R}} \sum_{t \in \mathcal{T}}
+      x_{r,t} \cdot \text{CI}_r(t) \cdot \bigl(1 - \alpha \cdot \text{CFE}_r(t)\bigr)}_{\text{(i) carbon cost}}
+  \;+\;
+    \underbrace{\gamma \sum_{r \neq r_0} \sum_{t \in \mathcal{T}} x_{r,t}}_{\text{(ii) transfer cost}}
+  \;+\;
+    \underbrace{\eta \cdot M}_{\text{(iii) equity}}
+  \right\}
   \label{eq:objective}
 \end{equation}
 
-Both CI and RF are deterministic input parameters: hourly values retrieved from the ElectricityMaps API before the optimization runs. Neither is a decision variable. They represent two distinct but complementary dimensions of grid cleanliness. CI is the direct carbon outcome: it measures actual emissions per kWh consumed and is the primary optimization signal~\citep{radovanovic2023}. RF measures the supply-side structure: the share of generation coming from variable renewables (wind, solar, hydro). A low-CI hour driven by wind and a low-CI hour driven by nuclear have the same CI value but different scheduling implications; RF discriminates between them.
+\begin{table}[h]
+\centering\small
+\renewcommand{\arraystretch}{1.3}
+\begin{tabularx}{\linewidth}{llp{2.8cm}X}
+\toprule
+\textbf{Symbol} & \textbf{Quantity} & \textbf{Range / Unit} & \textbf{Role in objective} \\
+\midrule
+\multicolumn{4}{l}{\textit{(i) Carbon cost}} \\
+$x_{r,t}$ & Flexible load & $\geq 0$, kWh & Decision variable: energy assigned to region $r$ at hour $t$ \\
+$\text{CI}_r(t)$ & Carbon intensity & gCO\textsubscript{2}eq/kWh & Primary cost signal; preserves cross-region comparability \\
+$\text{CFE}_r(t)$ & CFE fraction & $[0,\,1]$ & Share of consumption from carbon-free sources (renewables + nuclear) \\
+$\alpha$ & CFE weight & $[0,\,1]$ & Discount strength; $\alpha{=}0$ reduces to pure CI minimisation \\
+\midrule
+\multicolumn{4}{l}{\textit{(ii) Transfer cost}} \\
+$\gamma$ & Transfer penalty & gCO\textsubscript{2}eq/kWh & Carbon-equivalent shadow price on off-home routing: the additional carbon cost the scheduler is willing to incur to avoid transferring one kWh outside $r_0$. Keeps all three objective terms dimensionally consistent in gCO\textsubscript{2}eq. \\
+$r_0$ & Home region & integer & Default region; no transfer penalty applied \\
+\midrule
+\multicolumn{4}{l}{\textit{(iii) Equity}} \\
+$M$ & Max regional carbon & gCO\textsubscript{2}eq & Auxiliary variable: $M \geq \sum_t x_{r,t}\cdot\text{CI}_r(t)\ \forall r$; linearises the $\max_r$ operator \\
+$\eta$ & Equity weight & $\geq 0$ & Penalises concentration of carbon burden in any single region; $\eta{=}0$ removes equity term \\
+\bottomrule
+\end{tabularx}
+\caption{Components of the three-term objective function \eqref{eq:objective}.}
+\end{table}
 
-The motivation for including RF as an independent signal draws on \citet{radovanovic2023}, who argue for hourly carbon-free energy tracking that distinguishes renewable and nuclear contributions, and on \citet{liu2012}, who establish precedent for incorporating renewable fraction into LP scheduling objectives. The specific multiplicative form $\mathrm{CI}_r(t)\cdot(1-\alpha\cdot\mathrm{RF}_r(t))$ is an original construction of this thesis, grounded in the EDA regression analysis (Section~10). OLS regression of CI on RF across all five regions yields a statistically significant negative slope ($p \ll 0.01$ in every region), and the normalized slope $\beta_1/\overline{\mathrm{CI}}$ is more consistent across regions than the raw slope $\beta_1$. This indicates that the RF effect scales proportionally with the ambient CI level rather than acting as a fixed absolute reduction, which is precisely what the multiplicative discount encodes. A single shared $\alpha \in [0,1]$ is used if the implied per-region values $\alpha_r \approx -\beta_1/\beta_0$ cluster closely; otherwise region-specific values are applied. For any region where the CI--RF correlation is weak ($|r| < 0.2$), $\alpha_r$ is set to zero.
+\textbf{Interpretation.}
+
+\textit{Component (i): Carbon cost.}
+The term $x_{r,t} \cdot \text{CI}_r(t) \cdot (1 - \alpha \cdot \text{CFE}_r(t))$ is the carbon attributed to one unit of flexible load. $\text{CI}_r(t)$ is the base carbon cost; the factor $(1 - \alpha \cdot \text{CFE}_r(t))$ then discounts it according to how clean the consumed electricity is.
+
+Consider two hours that both have $\text{CI} = 100$ gCO\textsubscript{2}eq/kWh. In the first, high wind and nuclear output push CFE to 0.8; at $\alpha = 0.5$, the effective cost is $100 \times (1 - 0.5 \times 0.8) = 60$. In the second, demand is low overnight but the generation mix is still fossil-heavy, so CFE is 0.1; the effective cost is $100 \times (1 - 0.5 \times 0.1) = 95$. A pure CI minimiser treats both hours identically. The CFE discount correctly assigns a lower cost to the first, steering the scheduler toward hours where low emissions reflect actual clean generation rather than a temporary drop in demand.
+
+At $\alpha = 0$, the discount disappears entirely and the model reduces to pure CI minimisation. At $\alpha = 1$, a fully carbon-free hour (CFE\,=\,1) carries zero effective cost. EDA OLS regression of CI on CFE across the five regions yields implied values of 0.83--1.00 for PJM, NYISO, Finland, and Belgium, so the CFE signal is empirically strong, not just a theoretical add-on. The baseline uses $\alpha = 0.5$ (conservative); sensitivity analysis covers $\alpha \in \{0,\,0.5,\,0.8,\,1.0\}$. Singapore is a partial exception: CFE $\approx 2.7\%$ there, so the discount contributes negligibly regardless of $\alpha$.
+
+Raw CI values are not normalised. Cross-region comparability requires this: Finland at $\text{CI} \approx 72$ gCO\textsubscript{2}eq/kWh and Singapore at $\text{CI} \approx 567$ gCO\textsubscript{2}eq/kWh carry a roughly eight-to-one carbon-cost ratio. Per-region normalisation would collapse both to the same $[0,1]$ scale, destroying the spatial scheduling signal entirely.
+
+\textit{Component (ii): Transfer cost.}
+$\gamma$ is a cost in gCO\textsubscript{2}eq/kWh applied to every unit of flexible load routed outside the home region $r_0$. It represents how much additional carbon the scheduler is willing to incur in order to avoid an off-home transfer. At $\gamma = 0$, there is no such cost and the optimiser routes freely. As $\gamma$ increases, the scheduler gradually prefers local execution even when a remote region has lower CI.
+
+The scale of $\gamma$ must be calibrated against the actual CI gap between regions. In our dataset, median CI for PJM (home) is 466 gCO\textsubscript{2}eq/kWh and for Finland is 72; to make PJM competitive, $\gamma$ would need to exceed roughly 400 gCO\textsubscript{2}eq/kWh, a value with no direct operational counterpart. For this reason, the hard geographic cap in C4 is a more practical instrument when strict locality is required, and $\gamma$ is varied across a range in sensitivity analysis to trace the trade-off between carbon reduction and data-transfer cost.
+
+For all three objective terms to be dimensionally consistent in gCO\textsubscript{2}eq, $\gamma$ must carry units of gCO\textsubscript{2}eq/kWh. This keeps the weighted sum \eqref{eq:objective} interpretable: each unit represents a gram of CO\textsubscript{2}-equivalent.
+
+\textit{Component (iii): Equity.}
+$\eta$ is a scalar weight on the auxiliary variable $M$. $M$ represents the carbon footprint of the single most-burdened region: constraint C5 forces $M$ to be at least as large as the flexible-load carbon of every region, so it takes the value of the regional maximum. For example, if PJM accumulates 10{,}000 gCO\textsubscript{2} of flexible-load carbon and Finland accumulates 1{,}000 gCO\textsubscript{2}, then $M = 10{,}000$. Minimising $\eta \cdot M$ penalises schedules that concentrate carbon in one region.
+
+At $\eta = 0$, the equity term is absent and the model pursues total carbon minimisation only. At $\eta = 0.3$, the solver accepts an increase of 0.3 gCO\textsubscript{2} in total carbon in order to reduce the worst-case regional carbon by 1 gCO\textsubscript{2}. In the two-year backtest, $\eta = 0.3$ increased total carbon by 1{,}450 gCO\textsubscript{2} (+2.8\%), indicating that geographic equity can be achieved at modest aggregate cost in this dataset \citep{li2024equitable}.
+
+The three parameters $\alpha$, $\gamma$, $\eta$ each control one dimension of the objective. Setting any to zero removes that dimension and recovers a simpler baseline, which makes the contribution of each term independently verifiable.
+
+This thesis uses CFE as a real-time dispatch signal from the ElectricityMaps API, which differs from \citet{riepin2024spatiotemporal}, who treat 24/7 CFE matching as an investment-planning constraint under dedicated renewable asset ownership. Those authors decide which assets to build; this thesis decides when and where to consume grid electricity given existing infrastructure.
+
+\subsubsection*{Decision Variable}
+
+The model optimises over $x_{r,t} \geq 0$: the flexible load assigned to region $r$ at hour $t$, in kWh. Flexible workloads are those that can be deferred or relocated without violating job deadlines, such as batch training runs, offline inference, and data preprocessing jobs.
+
+The model's scope is deferrable workloads. Real-time inference, heartbeat jobs, and other latency-critical tasks run unconditionally and are handled at the system layer outside the LP. The LP optimises only the flexible portion. A noted limitation is that task-level trace data are not available for the five study regions, so the share of total load that is deferrable cannot be quantified empirically; this is left for future work.
+
+When $\eta > 0$, a scalar auxiliary variable $M$ is introduced: it is constrained to be at least as large as the carbon total of each region, so it takes the value of the regional maximum. This linearises the $\max_r(\cdot)$ term so the equity objective remains a linear program. When $\rho < 1$, per-region auxiliaries $U_r \geq \max_t x_{r,t}$ and $L_r \leq \min_t x_{r,t}$ are introduced to linearise the peak-to-trough difference in C7.
 
 \subsubsection*{Constraints}
 
 \begin{align}
-  &\sum_{r \in \mathcal{R}} \sum_{t \in \mathcal{T}} x_{r,t} = D
+  &\sum_{r \in \mathcal{R}} \sum_{t \in \mathcal{T}} x_{r,t} = D^{\text{flex}}
     \tag{C1}\label{eq:c1} \\[4pt]
-  &x_{r,t} \leq C_{\max,r} \quad \forall\, r, t
+  &\sum_{r \in \mathcal{R}} \sum_{t'=\tau}^{\min(\tau+\delta,\,|\mathcal{T}|)} x_{r,t'} \geq D_{\tau}^{\text{flex}} \quad \forall\,\tau \in \mathcal{T}
     \tag{C2}\label{eq:c2} \\[4pt]
-  &\sum_{t \in \mathcal{T}} x_{r,t} \cdot P_r(t) \leq B_r \quad \forall\, r
+  &C_{\min,r} \;\leq\; x_{r,t} \;\leq\; C_{\max,r} \quad \forall\, r,\, t
     \tag{C3}\label{eq:c3} \\[4pt]
-  &x_{r,t} \geq 0 \quad \forall\, r, t
-    \tag{C4}\label{eq:c4}
+  &\sum_{r \neq r_0} x_{r,t} \;\leq\; \sigma \cdot \sum_{r \in \mathcal{R}} x_{r,t} \quad \forall\, t
+    \tag{C4}\label{eq:c4} \\[4pt]
+  &M \;\geq\; \sum_{t \in \mathcal{T}} x_{r,t} \cdot \text{CI}_r(t) \quad \forall\, r \in \mathcal{R}
+    \tag{C5}\label{eq:c5} \\[4pt]
+  &x_{r,t} - x_{r,t-1} \;\leq\; \kappa \cdot C_{\max,r} \quad \forall\, r \in \mathcal{R},\; t \geq 1
+    \tag{C6a}\label{eq:c6a} \\[4pt]
+  &x_{r,t-1} - x_{r,t} \;\leq\; \kappa \cdot C_{\max,r} \quad \forall\, r \in \mathcal{R},\; t \geq 1
+    \tag{C6b}\label{eq:c6b} \\[4pt]
+  &x_{r,t} \;\leq\; U_r \quad \forall\, r \in \mathcal{R},\; t \in \mathcal{T}
+    \tag{C7a}\label{eq:c7a} \\[4pt]
+  &L_r \;\leq\; x_{r,t} \quad \forall\, r \in \mathcal{R},\; t \in \mathcal{T}
+    \tag{C7b}\label{eq:c7b} \\[4pt]
+  &U_r \;-\; L_r \;\leq\; \rho \cdot C_{\max,r} \quad \forall\, r \in \mathcal{R}
+    \tag{C7c}\label{eq:c7c}
 \end{align}
 
-C1 enforces exact demand completion. C2 bounds regional server capacity. C3 caps per-region electricity expenditure: since prices across PJM, NYISO, Nord Pool, and USEP are denominated in different currencies, a budget cap preserves model generalizability while still bounding operational cost; electricity price data collection is in progress and C3 will be activated once sources are confirmed. C4 is non-negativity.
+\textbf{C1:Total demand completion.}
+All flexible demand must be served over the planning horizon. This is the only constraint that forces the model to schedule anything at all; an LP with no demand-completion requirement would just set every $x_{r,t}$ to zero and call that optimal.
 
-The supervisor's VCC mechanism \citep{colangelo2025}, which indexes flexible load capacity against a CI ceiling, is a planned extension once Google Cluster Trace data is available. It will be incorporated as an additional constraint on the flexible-load component of $x_{r,t}$.
+\textbf{C2:Latency bound.}
+Each batch of flexible demand $D_{\tau}^{\text{flex}}$ arriving at hour $\tau$ must be fully served within $\delta$ hours, so the optimiser cannot push everything out to a single clean hour far in the future at the cost of every job's deadline. The effect is large in practice: with $\delta = 5$ h, the LP cannot reach the clean window in our test instance and carbon comes out at 45{,}000 gCO\textsubscript{2}; extending to $\delta = 24$ h brings it down to 4{,}000, an eleven-fold difference from one parameter change. The baseline sets $\delta = 24$ h; sensitivity analysis covers $\delta \in \{6, 12, 24, 48\}$ h.
+
+\textbf{C3:Regional capacity bounds.}
+The flexible load at each region-hour is bounded: $C_{\min,r} \leq x_{r,t} \leq C_{\max,r}$. The upper bound reflects physical supply and cooling limits per region; the lower bound prevents a region from going completely idle, which would incur restart costs when load returns. Non-negativity of $x_{r,t}$ follows automatically from $C_{\min,r} \geq 0$, so no separate constraint is needed for it. The integration test in Section~\ref{sec:validation} checks that both bounds hold exactly at every timestep.
+
+\textbf{C4:Geographic transfer limit (optional).}
+At each hour, the load scheduled outside the home region $r_0$ cannot exceed fraction $\sigma$ of the total dispatched load: $\sum_{r \neq r_0} x_{r,t} \leq \sigma \cdot \sum_r x_{r,t}$. The bound is relative to dispatched load rather than total demand, so it stays meaningful regardless of how much demand is deferred. Setting $\sigma = 1$ removes the constraint entirely. In testing, tightening $\sigma$ from 1.0 to 0.3 increased carbon by a factor of 5.5, a direct read on the carbon cost of data-locality restrictions. $\sigma$ is treated as a sensitivity parameter.
+
+\textbf{C5:Equity auxiliary (active when $\eta > 0$).}
+$M$ must be at least as large as the flexible-load carbon of each region, $M \geq \sum_t x_{r,t} \cdot \text{CI}_r(t)$ for all $r$, so at the optimum it equals the regional maximum. The solver has no incentive to keep $M$ tight on its own: without C5 it would simply set $M = 0$ and the equity term in the objective would do nothing. When $\eta = 0$, the equity term is absent from the objective and C5 is dropped from the model.
+
+\textbf{C6 (Ramp rate, active when $\kappa < 1$).}
+The load change between consecutive hours is capped at $\kappa \cdot C_{\max,r}$: a data center cannot instantaneously reassign large volumes of compute due to hardware warm-up, network reconfiguration, and job-queue inertia. The absolute-value bound $|x_{r,t} - x_{r,t-1}| \leq \kappa \cdot C_{\max,r}$ is not LP-compatible, so it is written as two one-sided inequalities: C6a bounds upward ramps and C6b bounds downward ramps; together they are equivalent to the original absolute-value form. The concept follows \citet{wijayawardana2025scheduling}, who characterise this as \emph{step size}. In testing, $\kappa = 0.1$ (limit = 10 kWh/h) forced 66.7 kWh out of the clean window and into higher-carbon hours, raising total carbon from 8{,}000 to 31{,}333 gCO\textsubscript{2}; the constraint is genuinely binding, not just present in the formulation.
+
+\textbf{C7:Dynamic range (active when $\rho < 1$).}
+The peak-to-trough load swing in region $r$ over the full horizon cannot exceed $\rho \cdot C_{\max,r}$. A scheduler with no such limit can exploit carbon variability by swinging a region between near-zero and full capacity; this is operationally disruptive to cooling systems and power procurement, even if it minimises carbon on paper. The constraint is expressed directly in LP-compatible form via per-region auxiliary variables $U_r$ (upper envelope) and $L_r$ (lower envelope): C7a forces $U_r$ to be at least as large as every hourly load, C7b forces $L_r$ to be at most every hourly load, and C7c caps their difference at $\rho \cdot C_{\max,r}$. Together, C7a--C7c enforce the peak-to-trough limit without any nonlinearity. The concept follows \citet{wijayawardana2025scheduling}, who term this \emph{dynamic range}. In testing, $\rho = 0.4$ (limit = 40 kWh on a 100 kWh region) held the swing exactly at 40 kWh and raised carbon from 12{,}500 to 21{,}250 gCO\textsubscript{2}.
 
 \subsubsection*{Model Validation: Component-Level References}
 
@@ -184,18 +274,33 @@ The supervisor's VCC mechanism \citep{colangelo2025}, which indexes flexible loa
 \toprule
 \textbf{Component} & \textbf{Description} & \textbf{Reference} \\
 \midrule
-Objective form \eqref{eq:objective}
-  & CI-weighted load as carbon cost signal
-  & \citet{radovanovic2023} \\
-RF weighting \((1-\alpha\cdot\text{RF})\)
-  & Multiplicative discount derived from EDA regression; motivation from \citet{radovanovic2023} and \citet{liu2012}; functional form original to this thesis
-  & This thesis \\
-C1--C2
-  & Demand completion and capacity bounds
+Objective (i): carbon cost
+  & CI primary signal; CFE multiplicative discount
+  & \citet{radovanovic2023}; $\alpha$ this thesis \\
+Objective (ii): transfer cost
+  & Carbon shadow price on off-home routing [gCO\textsubscript{2}eq/kWh]; ensures dimensional consistency across all three objective terms
+  & \citet{attenni2024shifting}; this thesis \\
+Objective (iii): equity
+  & Min-max regional carbon via auxiliary $M$; linearised in LP
+  & \citet{li2024equitable} \\
+C1 (demand)
+  & Global flexible demand completion
   & \citet{liu2012} \\
-C3 (budget)
-  & Per-region electricity cost cap (pending price data)
-  & \citet{hao2024joint} \\
+C2 (latency)
+  & Per-batch latency bound $\delta$; deferral structure of compute jobs
+  & \citet{liu2012}; \citet{attenni2024shifting} \\
+C3 (capacity)
+  & Regional capacity upper and lower bounds
+  & \citet{liu2012} \\
+C4 (transfer, optional)
+  & Geographic shift fraction $\sigma$; data locality and migration limits
+  & \citet{riepin2024spatiotemporal}; \citet{attenni2024shifting} \\
+C6 (ramp rate)
+  & Per-hour load change capped at $\kappa \cdot C_{\max,r}$; models hardware warm-up and scheduling inertia
+  & \citet{wijayawardana2025scheduling} \\
+C7 (dynamic range)
+  & Horizon-wide load swing capped at $\rho \cdot C_{\max,r}$; prevents extreme oscillations harmful to grid stability
+  & \citet{wijayawardana2025scheduling} \\
 Multi-region joint LP structure
   & Cross-region temporal-spatial allocation
   & \citet{riepin2024spatiotemporal}; \citet{attenni2024shifting} \\
@@ -204,58 +309,226 @@ Multi-region joint LP structure
 \caption{Component-level references validating the mathematical formulation.}
 \end{table}
 
-\subsubsection*{Solver and Heuristic Fallback}
-The model is solved with \textbf{Gurobi} as a Linear Program (LP) over continuous variables. If workload discretization is required, the formulation upgrades to a Mixed Integer Program (MIP); given the large-scale horizon (\(|\mathcal{R}|=5\), \(|\mathcal{T}| = 17{,}544\) hours over two years), LP relaxation is the default.
+\subsection{Model Validation}
+\label{sec:validation}
 
-If the LP solve time proves prohibitive for rolling-window backtesting, a \textbf{greedy heuristic} is implemented as a fallback: at each decision window, sort hours by effective carbon cost \(\text{CI}_r(t)\cdot(1-\alpha\cdot\text{RF}_r(t))\) and greedily assign load to the cheapest region-hour pairs subject to capacity constraints. The heuristic provides a near-optimal bound and serves as an additional baseline for benchmarking solution quality.
+Before running the full two-year backtest, the complete LP formulation, with constraints C1--C7 simultaneously active, is verified on a representative small instance: the first seven days (168 hours) of the dataset, restricted to three regions (PJM as home, Finland, Belgium) at the full-model parameter values used in the constraint combination analysis ($\sigma=0.5$, $\kappa=0.2$, $\rho=0.4$, $\eta=0.3$, $\delta=24$\,h). Testing all constraints together on the same solution checks the model as a coherent system and surfaces any interactions between constraints that per-constraint tests in isolation would miss.
+
+The LP is solved once. All seven constraints are checked against the returned solution within numerical tolerance ($10^{-4}$). The binding status of each constraint is recorded: a constraint is binding if its observed value equals the limit at the optimum. A slack constraint is not a failure. It means the constraint is not the bottleneck for this particular data window and parameter set (Table~\ref{tab:validation}).
+
+\begin{table}[h]
+\centering\small
+\renewcommand{\arraystretch}{1.3}
+\begin{tabularx}{\linewidth}{p{0.6cm}p{2.4cm}Xp{1.4cm}p{1.2cm}}
+\toprule
+ & \textbf{Constraint} & \textbf{Observed vs.\ limit} & \textbf{Binding} & \textbf{Status} \\
+\midrule
+C1 & Demand           & 7.000 kWh $=$ 7.0 kWh required & Yes & PASS \\
+C2 & Latency          & Latest placement at hour 19/23 within window & No  & PASS \\
+C3 & Capacity         & $\min(x)=0$ (at $C_{\min}$); $\max(x)=0.30$ vs.\ $C_{\max}=1.0$ & Partial & PASS \\
+C4 & Transfer limit   & Max off-home fraction $= 0.50 = \sigma$ & Yes & PASS \\
+C5 & Fairness         & $M = 1{,}683$ gCO\textsubscript{2} $=$ PJM regional carbon & Yes & PASS \\
+C6 & Ramp rate        & Max ramp $= 0.20 = \kappa \cdot C_{\max}$ & Yes & PASS \\
+C7 & Dynamic range    & Max swing $= 0.30 < \rho \cdot C_{\max} = 0.40$ & No  & PASS \\
+\bottomrule
+\end{tabularx}
+\caption{Integration validation results (7/7 pass). All constraints checked simultaneously on 168 hours of real CI/CFE data for PJM, Finland, and Belgium at full-model parameters. LP carbon saving vs.\ home-only baseline: 39.8\,\%.\label{tab:validation}}
+\end{table}
+
+C1, C4, C5, and C6 are simultaneously binding: demand is fully served, the geographic cap is at the $\sigma$ limit at every active hour, the fairness auxiliary $M$ equals the most-burdened region (PJM), and the ramp rate reaches $\kappa \cdot C_{\max}$ in both PJM and Belgium. C2 and C7 are slack: the 24-hour deadline gives the LP enough room to reach its preferred scheduling hours, and the dynamic range at $\rho=0.4$ is wider than the 0.30 swing the LP naturally adopts in this January window. This matches the sensitivity result in Section~\ref{sec:sensitivity}: C7 only starts costing carbon once $\rho$ drops below 0.2. C3's lower bound is binding (Finland load $= 0$) but the upper bound is slack, so capacity is not the scheduling bottleneck here.
+
+\subsubsection*{Perturbation Scenario Checks}
+
+The integration test above checks that all seven constraints hold simultaneously on one fixed instance; it does not check that the model \emph{reacts correctly} when an input changes. A second, complementary test addresses this on a hand-traceable instance: 3 regions and 6 hours, synthetic but interpretable CI profiles (a flat dirty home region, a region with a clean dip mid-window, and a flat medium region), with all constraints active simultaneously ($\sigma=0.6$, $\kappa=0.5$, $\rho=0.7$, $\eta=0.1$). Four inputs are perturbed one at a time from a common baseline, and the resulting allocation is checked against the change one would expect by hand:
+
+\begin{itemize}
+  \item \textbf{CI shock}: raising the clean region's CI above the home region's should move load away from it toward the new cheapest region. Observed: the clean region's share drops from 6.0 to 0.0\,kWh and the medium region's share rises from 0.0 to 6.0\,kWh.
+  \item \textbf{Demand increase}: raising demand from 10 to 18\,kWh should still serve all of it (C1) without reducing any region's existing allocation. Observed: 18.0\,kWh served exactly; the previously preferred region's load does not decrease, and the overflow is picked up elsewhere.
+  \item \textbf{Deadline tightened} ($\delta$ from 6 to 1): removing access to the mid-window clean hour should raise carbon. Observed: carbon rises from 2{,}087 to 2{,}350\,gCO\textsubscript{2}, and no load is placed after hour 0, as the tightened deadline requires.
+  \item \textbf{Capacity squeeze}: a mild squeeze (3\,kWh/h, still $\geq$ the 6\,kWh wanted over a 6-hour window) should leave the region's total unchanged and only spread it over more hours, since $C_{\max}$ is a per-hour, not a per-window, cap. A severe squeeze (0.5\,kWh/h, capping the region at 3\,kWh for the whole window) should force genuine overflow. Both predictions are confirmed: the mild case leaves the total exactly unchanged (6.0\,kWh, just spread over more hours); the severe case drops the region's total to 3.0\,kWh with the 3.0\,kWh shortfall picked up elsewhere.
+\end{itemize}
+
+All scenarios behave in the predicted direction. The mild-vs-severe capacity case is a useful check in its own right: an earlier draft of this test used a single mild squeeze and concluded (incorrectly) that capacity constraints do nothing in this regime, an artefact of floating-point solver noise rather than a real effect. Using a tolerance margin and a genuinely binding squeeze resolved this.
+
+\subsubsection*{Solver and Heuristic Fallback}
+The model is solved as a Linear Program (LP) over continuous variables using the HiGHS solver via \texttt{scipy.optimize.linprog}. If workload discretization is required, the formulation upgrades to a Mixed Integer Program (MIP); given the large-scale horizon (\(|\mathcal{R}|=5\), \(|\mathcal{T}| = 17{,}544\) hours over two years), LP relaxation is the default.
+
+If the LP solve time proves prohibitive for rolling-window backtesting, a \textbf{greedy heuristic} is implemented as a fallback: at each decision window, sort region-hour pairs by effective cost $\text{CI}_r(t)\cdot(1-\alpha\cdot\text{CFE}_r(t)) + \gamma\cdot\mathbf{1}[r \neq r_0]$ and greedily assign load to the cheapest feasible pairs subject to capacity and transfer constraints. The equity term is omitted from the greedy sort key since it is a global objective that cannot be decomposed per region-hour. The heuristic provides a near-optimal bound and serves as an additional baseline for benchmarking solution quality.
 
 \subsection{Evaluation: Backtesting}
 
-The optimal schedule is evaluated by replaying two years of historical data in a rolling-window fashion, simulating real-time decisions without look-ahead beyond the current optimization window.
+The optimal schedule is evaluated by replaying two years of historical data in a rolling-window fashion, simulating real-time decisions without look-ahead beyond the current optimisation window.
 
 \begin{table}[h]
-\centering
-\begin{tabularx}{\linewidth}{p{3cm}X}
+\centering\small
+\renewcommand{\arraystretch}{1.3}
+\begin{tabularx}{\linewidth}{p{2.2cm}Xp{3.2cm}}
 \toprule
-\textbf{Baseline} & \textbf{Description} \\
+\textbf{Baseline} & \textbf{Description} & \textbf{Role} \\
 \midrule
-Carbon-Agnostic     & Uniform scheduling; no carbon awareness \\
-Simple Shifting     & Rule-based: defer all flexible load to the lowest-CI hour \\
-Oracle              & Perfect 24h CI foresight (theoretical upper bound) \\
-\textbf{This model} & Deterministic LP with historical CI/RF (constraints C1--C4) \\
+Uniform    & Demand split equally across all region-hour slots; no carbon awareness & Performance floor \\
+FCFS       & Fill the earliest available slots within the deadline window, ignoring carbon; home region first & Naive scheduling \\
+Greedy     & Sort region-hour pairs by effective cost $\text{CI}_r(t)(1{-}\alpha\cdot\text{CFE}_r(t))$; fill cheapest first & Carbon-aware, no solver \\
+Oracle     & LP solved over a 168-hour look-ahead window & Near-optimal ceiling \\
+\textbf{LP (this model)} & 24-hour rolling-window LP with constraints C1--C7 & Proposed method \\
 \bottomrule
 \end{tabularx}
-\caption{Evaluation baselines.}
+\caption{Evaluation baselines. FCFS and Greedy require no solver. Oracle and LP require one LP solve per window.}
 \end{table}
 
-Carbon savings are reported per region against all three baselines. A post-hoc counterfactual decomposition then isolates the marginal contribution of temporal versus spatial flexibility. Finally, CV is used to explain why savings vary across regions: high-CV grids such as PJM benefit substantially from shifting, while low-CV grids such as Singapore do not.
+Carbon savings are reported per region against all four baselines. A post-hoc counterfactual decomposition isolates the marginal contributions of temporal and spatial flexibility. The coefficient of variation (CV) is used to explain cross-region differences: high-CV grids such as PJM offer more scheduling opportunity than low-variance grids such as Singapore.
 
-% ── 6. Thesis Structure ───────────────────────────────────────────────────────
-\section{Planned Thesis Structure (\textasciitilde 30 Pages)}
+\subsubsection*{Solution Exhibit}
 
-\begin{enumerate}
-  \item \textbf{Introduction} (\textasciitilde 4 pages)\\
-  Establishes the motivation: AI data centers now draw hundreds of megawatts continuously, yet most scheduling systems ignore the hourly variation in grid carbon intensity that makes shifting valuable. The section sets out the research question and the three contributions, and explains why a deterministic LP fills a gap that existing heuristic approaches leave open.
+Figure~F0 makes the schedule concrete for one representative 24-hour window. The comparison is deliberately \emph{no-shift versus LP-shift}, not unconstrained-LP versus constrained-LP: the latter compares two optimised schedules, neither of which represents what the system does without the model, so it is not informative about the model's value. The no-shift baseline serves the batch immediately, at the home region, exactly as it arrives, equivalent to FCFS in this single-batch setting. The LP-shift panel uses the operational constraints ($\kappa=0.2$, $\rho=0.4$). In this window, no-shift costs 533\,gCO\textsubscript{2}; the LP routes the batch to Finland and spreads it over five hours to satisfy the ramp constraint, costing 53\,gCO\textsubscript{2}, a 90.0\,\% reduction. This single window is illustrative only; Section~\ref{sec:heuristic} and the two-year backtest are the basis for the thesis's quantitative claims.
 
-  \item \textbf{Literature Review} (\textasciitilde 6 pages)\\
-  Review of the carbon-aware workload scheduling literature, covering temporal shifting, spatial load balancing, joint spatio-temporal optimization, and AI-specific workload management. The review closes by positioning this thesis relative to prior work: the key gap is the absence of a deterministic LP that jointly optimizes both scheduling dimensions with an RF-weighted objective, evaluated on real multi-region data.
+\begin{figure}[h!]
+\centering
+\includegraphics[width=\linewidth]{schedule_sample}
+\caption{Figure~F0: No-shift baseline (left) versus LP-optimised schedule (right) for one representative 24-hour window. Bottom panels show the CI signal used by both.\label{fig:f0}}
+\end{figure}
 
-  \item \textbf{Problem Description} (\textasciitilde 5 pages)\\
-  States the problem formally and describes the data: two years of hourly CI and RF from ElectricityMaps across the five regions. Defines CI, RF, and CV, then presents the unified joint LP, covering the objective function, constraints C1--C5, and notation.
+\subsection{Sensitivity Analysis}
+\label{sec:sensitivity}
 
-  \item \textbf{Computation Results \& Solution Methodology} (\textasciitilde 10 pages)\\
-  Solver: Gurobi LP, with a greedy carbon-aware heuristic as fallback if rolling-window solve times prove prohibitive. Results are organized as follows: single-region temporal optimization across all five zones, followed by the full joint multi-region LP. Backtesting compares the model against the three baselines. The analysis concludes with a post-hoc decomposition separating the marginal contributions of temporal and spatial flexibility, and a CV-based regression explaining cross-region variation.
+Each of the six tunable parameters is varied over its plausible range while the other five are held at their baseline values (Table~\ref{tab:baseline}). The LP and all four heuristic baselines are run over the full two-year horizon for each setting; total carbon saving relative to the uniform baseline is recorded. This one-at-a-time approach isolates each parameter's individual effect and reveals which assumptions the model is most sensitive to.
 
-  \item \textbf{Conclusion} (\textasciitilde 3 pages)\\
-  Summarizes the main findings and their practical implications for data center operators. Discusses limitations of the deterministic approach and outlines directions for future work, including stochastic extensions and real-time deployment.
-\end{enumerate}
+\begin{table}[h]
+\centering\small
+\renewcommand{\arraystretch}{1.3}
+\begin{tabularx}{\linewidth}{llXl}
+\toprule
+\textbf{Param} & \textbf{Baseline} & \textbf{Sweep range} & \textbf{Interpretation} \\
+\midrule
+$\alpha$ & 0.5 & $\{0,\;0.25,\;0.5,\;0.75,\;1.0\}$ & How much does the CFE signal add beyond raw CI? \\
+$\sigma$ & 1.0 (inactive) & $\{0.3,\;0.5,\;0.7,\;0.9,\;1.0\}$ & What is the carbon cost of data locality requirements? \\
+$\delta$ & 24 h & $\{6,\;12,\;24,\;48\}$ h & How much does deferral flexibility reduce carbon? \\
+$\kappa$ & 1.0 (inactive) & $\{0.1,\;0.2,\;0.5,\;0.8,\;1.0\}$ & What does the ramp-rate limit cost in carbon terms? \\
+$\rho$   & 1.0 (inactive) & $\{0.2,\;0.4,\;0.6,\;0.8,\;1.0\}$ & What does the dynamic-range limit cost? \\
+$\eta$   & 0 & $\{0,\;0.1,\;0.3,\;0.5,\;1.0\}$ & What is the aggregate cost of geographic fairness? \\
+\bottomrule
+\end{tabularx}
+\caption{Sensitivity sweep: baseline values and ranges. \label{tab:baseline}}
+\end{table}
+
+Following the one-at-a-time (OAT) sensitivity analysis convention for LP models with few parameters \citep{saltelli2008}, Figure~F1 reports the result as a tornado diagram \citep{eschenbach1992}: each parameter is swept across its full tested range while the others are held at their loosest (inactive) values, and the resulting LP carbon is expressed as a percentage change from the fully unconstrained baseline. Bars are sorted by impact width, so the dominant parameter appears at the top.
+
+The dominant finding is that $\sigma$, the geographic cap, determines the effective range of achievable savings far more than any other parameter: tightening $\sigma$ from 1.0 to 0.3 increases LP carbon by 373.7\,\% relative to the unconstrained baseline. By contrast, $\eta$ (+20.2\,\%), $\delta$ (+8.2\,\%), $\rho$ (+2.9\,\%), $\kappa$ (+2.1\,\%), and $\alpha$ (+0.2\,\%) each have an order of magnitude less impact. At the tested magnitudes, geographic data-locality requirements limit achievable carbon savings far more than either temporal smoothing or fairness constraints do.
+
+\subsubsection*{Why $\kappa$, $\rho$, and $\alpha$ have a small aggregate effect}
+
+A small aggregate effect is not, by itself, evidence that a parameter is inactive, and this was checked explicitly rather than assumed. For $\kappa$ and $\rho$: because each window injects a single demand batch, the unconstrained LP's natural solution always concentrates that batch into one region-hour slot, so the ramp constraint is at its structural maximum (a 100\,\% ramp) in every one of the 731 windows --- $\kappa$ and $\rho$ are binding in 100\,\% of windows, not a minority of them. Their carbon cost is small not because they rarely bind, but because the region the LP prefers usually has a locally smooth CI profile around its optimal hour, so spreading the batch over a few additional hours to satisfy the ramp/range cap costs little carbon. The same mechanism explains why C6 and C7 are clearly binding yet carbon-cheap in the validation instance (Table~\ref{tab:validation}).
+
+For $\alpha$: comparing the optimal allocation at $\alpha=0$ versus $\alpha=1$ directly (not just the resulting carbon) on a sample of 100 windows shows the allocation differs in 43 of them, sometimes substantially. The CFE discount is doing something real to the schedule. The reason the aggregate carbon barely moves is that CI and CFE are strongly negatively correlated within each region (Pearson $r=-0.98$ for Finland and Belgium, $-0.87$ for NYISO, $-0.61$ for PJM): the hours the discount makes more attractive are usually already low-CI hours, so the discount rarely redirects the schedule toward a meaningfully dirtier hour. Singapore is the exception ($r=-0.24$, reflecting its near-flat 2.7\,\% CFE share), where $\alpha$ has essentially nothing to act on regardless of its value.
+
+\begin{figure}[h!]
+\centering
+\includegraphics[width=\linewidth]{sensitivity_tornado}
+\caption{Figure~F1: OAT tornado diagram. Each bar shows the \% change in LP carbon, relative to the unconstrained baseline, as one parameter is swept across its full range with the others held loose. Sorted by impact width.\label{fig:f1}}
+\end{figure}
+
+\subsection{Seasonal Analysis}
+\label{sec:seasonal}
+
+\textbf{Seasonal variation.} The two-year dataset is split into Winter (DJF), Spring (MAM), Summer (JJA), and Autumn (SON). All five schedulers are compared on each slice. The motivation is that the CI spread across regions changes with renewable generation mix: Finland and Belgium carry substantially more wind and solar in summer, which widens the spatial routing opportunity. Summer yields the highest LP saving (84.1\,\%) and Spring the lowest (73.4\,\%). Figure~F2 (left panel) shows per-season savings across all schedulers; the right panel shows the regional share of LP-allocated carbon. Finland absorbs the majority of scheduled load in all four seasons, and that share rises further in summer as the CI differential versus PJM widens.
+
+\begin{figure}[h!]
+\centering
+\includegraphics[width=\linewidth]{seasonal_breakdown}
+\caption{Figure~F2: Left: carbon saving by season for all five schedulers. Right: regional share of LP-allocated carbon per season.\label{fig:f2}}
+\end{figure}
+
+\subsection{Heuristic Analysis}
+\label{sec:heuristic}
+
+Following the optimality-gap convention used to benchmark heuristics against a near-optimal reference \citep{dolanmore2002,acun2023carbonexplorer}, Figure~F3 reports each scheduler's \emph{LP efficiency ratio}:
+$$\text{eff} = \frac{C_{\text{Uniform}} - C_{\text{alg}}}{C_{\text{Uniform}} - C_{\text{LP}}} \times 100\,\%,$$
+the fraction of the LP's carbon-saving potential (relative to the Uniform baseline) that each scheduler captures. By construction, LP $= 100\,\%$ and Uniform $= 0\,\%$; Oracle can exceed 100\,\% by exploiting a longer look-ahead, and a scheduler can fall below 0\,\% if it performs worse than doing nothing.
+
+FCFS fills the earliest available slots within the deadline window using the home region first, with no carbon information. Its efficiency ratio is $-65.7\,\%$: because PJM has consistently high CI throughout the day, concentrating demand there early produces $51.5\,\%$ \emph{more} carbon than the Uniform baseline. A naive first-come-first-served policy without carbon awareness actively increases carbon relative to doing nothing, which is practically significant because FCFS is a common default in production job schedulers.
+
+Greedy sorts region-hour pairs by effective cost $\text{CI}_r(t)(1-\alpha\cdot\text{CFE}_r(t))$ and fills the cheapest slots first, without solving an LP. Its efficiency ratio is $100.0\,\%$ in the unconstrained baseline, matching the LP exactly: without ramp or range constraints, the optimal solution is to concentrate load in the cheapest available slots, which both methods identify. The gap opens when C6 or C7 is active, because those constraints require coordinating load across consecutive hours, which a greedy fill cannot do. This means Greedy is a practical deployable alternative in lightly-constrained settings but not a substitute when operational limits are tight.
+
+Oracle, solved over a 168-hour look-ahead window, reaches an efficiency ratio of $103.9\,\%$, exceeding the 24-hour LP by exploiting a longer planning horizon. The margin is small and consistent across all seasons, suggesting that a one-day planning horizon captures most of the available scheduling opportunity and that longer look-ahead provides diminishing returns.
+
+\begin{figure}[h!]
+\centering
+\includegraphics[width=\linewidth]{heuristic_comparison}
+\caption{Figure~F3: LP efficiency ratio per scheduler over the full two-year backtest (left) and by season (right). LP $=100\,\%$ reference; Oracle exceeds 100\,\% via longer look-ahead; FCFS is negative, indicating it performs worse than the Uniform baseline.\label{fig:f3}}
+\end{figure}
+
+\subsection{Decomposition and Cross-Region Analysis}
+\label{sec:decomp}
+
+\textbf{Temporal versus spatial decomposition.} A key question about the LP's performance is how much of the 78.4\,\% carbon saving comes from routing load to cleaner regions (spatial flexibility) versus scheduling load at cleaner times within a region (temporal flexibility). Following the three-variant decomposition design used to separate these contributions in the carbon-aware scheduling literature \citep{sukprasert2024limitations}, the two-year backtest is re-run under three restricted LP variants:
+
+\begin{itemize}
+  \item \emph{Temporal only}: $\sigma \approx 0$ forces all load to remain in the home region (PJM); the LP may only shift load across hours within PJM.
+  \item \emph{Spatial only}: $\delta = 1$ removes deferral; the LP routes load across regions but cannot delay any demand.
+  \item \emph{Joint} (baseline): both dimensions active, $\sigma = 1$, $\delta = 24$.
+\end{itemize}
+
+The marginal saving of each dimension is computed relative to the uniform baseline, and an interaction term captures the additional value of combining both. Results are reported in Table~\ref{tab:decomp} and Figure~F6.
+
+\begin{table}[h]
+\centering\small
+\renewcommand{\arraystretch}{1.3}
+\begin{tabularx}{\linewidth}{lrrrr}
+\toprule
+\textbf{Season} & \textbf{Temporal only} & \textbf{Spatial only} & \textbf{Joint} & \textbf{Interaction} \\
+\midrule
+All    & $-35.6$\,\% & $75.6$\,\% & $78.4$\,\% & $38.4$\,\% \\
+Winter & $-35.1$\,\% & $71.7$\,\% & $74.8$\,\% & $38.2$\,\% \\
+Spring & $-33.0$\,\% & $69.7$\,\% & $73.4$\,\% & $36.6$\,\% \\
+Summer & $-47.2$\,\% & $82.4$\,\% & $84.1$\,\% & $48.9$\,\% \\
+Autumn & $-27.0$\,\% & $78.5$\,\% & $81.2$\,\% & $29.7$\,\% \\
+\bottomrule
+\end{tabularx}
+\caption{Temporal vs spatial decomposition of carbon saving relative to uniform scheduling. Interaction $=$ saving$_\text{joint} -$ saving$_\text{temporal} -$ saving$_\text{spatial}$. \label{tab:decomp}}
+\end{table}
+
+\begin{figure}[h!]
+\centering
+\includegraphics[width=\linewidth]{decomposition}
+\caption{Figure~F6: Stacked bar decomposition of temporal, spatial, and interaction contributions to carbon saving, by season.\label{fig:f6}}
+\end{figure}
+
+The spatial-only variant saves 75.6\,\%, accounting for nearly all of the joint saving. The temporal-only variant produces a negative saving of $-35.6$\,\%: constraining all load to PJM and optimising over time performs worse than the uniform baseline, because PJM has high CI throughout the day and the uniform baseline already distributes one fifth of load to lower-CI regions by default. Temporal scheduling within a dirty grid is actively counterproductive when the alternative is to distribute load more broadly.
+
+The interaction term (38.4\,\% overall, 48.9\,\% in summer) is the extra saving from doing both together: routing load to a clean region and then picking its cheapest hours beats either move alone. The interaction peaks in summer, when Finland's diurnal CI swing is largest and there is more for the timing half of the decision to work with.
+
+\textbf{Cross-region variation: CV regression.} To explain why some regions offer more temporal scheduling opportunity than others, the coefficient of variation (CV $= \sigma_\text{CI}/\mu_\text{CI}$) of hourly CI is computed per region over the full two-year dataset and compared against the per-region temporal saving, defined as the saving achieved by a single-region LP relative to uniform allocation within that region alone (Figure~F7).
+
+Finland (CV $= 0.42$) and Belgium (CV $= 0.40$) show the largest within-region temporal savings, at 13.3\,\% and 27.7\,\% respectively. PJM, NYISO, and Singapore have low CV (0.11--0.13) and correspondingly low temporal savings (5.2--7.5\,\%). The positive relationship between CV and temporal saving is what we would expect: without CI variability over time, there is nothing for temporal shifting to exploit. Belgium's higher saving relative to Finland despite similar CV reflects a more pronounced diurnal renewable pattern, concentrated in daytime solar hours, which the LP can exploit more systematically than Finland's less predictable wind profile.
+
+\begin{figure}[h!]
+\centering
+\includegraphics[width=\linewidth]{cv_regression}
+\caption{Figure~F7: Per-region coefficient of variation of hourly CI versus within-region temporal carbon saving, with OLS regression line.\label{fig:f7}}
+\end{figure}
+
+\medskip
+\noindent\textbf{Summary of empirical figures.}
+\begin{itemize}
+  \item \textbf{F0}: No-shift baseline vs. LP-optimised schedule for one representative window.
+  \item \textbf{F1}: OAT tornado diagram of LP carbon impact across all six parameters.
+  \item \textbf{F2}: Seasonal savings and regional carbon share per season.
+  \item \textbf{F3}: Heuristic comparison (LP efficiency ratio) across all five schedulers, full backtest and per season.
+  \item \textbf{F6}: Additive decomposition of temporal, spatial, and interaction contributions, by season.
+  \item \textbf{F7}: Scatter of per-region CV of CI versus temporal carbon saving, with OLS regression.
+\end{itemize}
 
 % ── 7. Expected Contributions ─────────────────────────────────────────────────
 \section{Expected Contributions}
 
-The primary technical contribution is a unified joint LP that optimizes temporal and spatial workload scheduling in a single pass, without pre-imposing a sequential decomposition. The RF weighting term extends prior CI-only objectives~\citep{liu2012, radovanovic2023} by incorporating supply-side renewable structure: a low-CI window driven by wind receives a stronger incentive than one driven by nuclear. The specific multiplicative discount form is derived from EDA regression analysis rather than assumed a priori. The supervisor's VCC mechanism \citep{colangelo2025} is incorporated as a planned constraint extension once the required workload trace data is available.
+\paragraph{C1:Unified joint LP for carbon-aware scheduling.}
+Existing approaches either optimise temporal shifting and spatial load balancing sequentially, or rely on rule-based heuristics rather than provably optimal formulations \citep{liu2012, radovanovic2023}. This thesis formalises both dimensions into a single LP solved jointly over a rolling window, without pre-imposing a sequential decomposition.
 
-On the empirical side, the model is evaluated across five structurally distinct grid regions spanning the US, Northern Europe, and Southeast Asia. CV is used as a diagnostic to explain why savings differ across regions, and the post-hoc decomposition quantifies how much of the total gain comes from shifting \emph{when} versus \emph{where} workloads run.
+\paragraph{C2:CFE-weighted objective with empirically determined discount.}
+Prior CI-only objectives treat two hours with identical carbon intensity as equivalent, regardless of whether the low emissions arise from clean generation or a transient demand trough \citep{radovanovic2023}. The objective function $\text{CI}_r(t)\cdot(1-\alpha\cdot\text{CFE}_r(t))$ adds a multiplicative CFE discount that rewards structurally clean grids. The weight $\alpha$ is not assumed a priori: EDA regression of CI on CFE across five regions yields implied values of 0.83--1.00, and sensitivity analysis covers $\alpha \in \{0, 0.5, 0.8, 1.0\}$. This distinguishes the approach from \citet{riepin2024spatiotemporal}, who treat 24/7 CFE matching as an investment-planning constraint under dedicated asset ownership; here CFE is used as a real-time dispatch signal from the public ElectricityMaps API, requiring no dedicated procurement.
+
+\paragraph{C3:Empirical evaluation across five structurally distinct grids.}
+The model is backtested over two years of hourly data across PJM, NYISO, Finland, Belgium, and Singapore, five regions that span a wide range of generation mix, CI level, and temporal variability. The coefficient of variation (CV) is used as a diagnostic to explain cross-regional differences in scheduling savings, and a post-hoc decomposition isolates the marginal contribution of temporal versus spatial flexibility to total carbon reduction.
 
 % ── References ────────────────────────────────────────────────────────────────
 \bibliographystyle{plainnat}

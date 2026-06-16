@@ -2,9 +2,9 @@
 ## Carbon-Intelligent Workload Scheduling for AI Data Centers
 
 **Author:** Isabel Wu | IE University MBADS Capstone 2025–2026  
-**Last updated:** 2026-05-18  
+**Last updated:** 2026-05-21  
 **Coverage:** All papers in `references.bib` (cited + to-read)  
-**Deep notes (Chinese + English):** See `精读文档_AI与碳排放领域文献综述.md` for Papers 1–5
+**Deep notes (Chinese + English):** See `精读文档_AI与碳排放领域文献综述.md` for Papers 1–6
 
 ---
 
@@ -132,15 +132,36 @@ Each entry follows this structure:
 ---
 
 ### [riepin2024spatiotemporal] Riepin, Brown, Zavala (2025)
-**Spatio-temporal load shifting for truly clean computing** | Advances in Applied Energy 17 | arXiv:2405.00036 | doi:10.1016/j.adapen.2024.100175
+**Spatio-temporal load shifting for truly clean computing** | Advances in Applied Energy 17 | arXiv:2405.00036 | doi:10.1016/j.adapen.2024.100202
 
-- **Core claim:** A joint LP using 24/7 CFE fraction signals for spatial routing and temporal flexibility yields maximum carbon savings for datacenters ~300–400 km apart; purely temporal shifting leaves substantial savings on the table.
-- **Method:** LP-based optimization over a network of geo-distributed data centers; 24/7 Carbon-Free Energy (CFE) fraction as the scheduling signal.
-- **Key result:** Spatial shifting adds 10–25% beyond temporal-only; optimal datacenter separation: 300–400 km; joint LP outperforms two-phase approaches.
-- **Thesis relevance:** Ch. 2 (closest prior work — joint LP structure), Ch. 3 (joint LP structure; RF weighting extends their CFE signal).
-- **Gap it exposes:** Uses CFE fraction signal (not CI directly); no RF-weighted objective; no rolling-window backtesting on multi-year real data.
-- **Note:** Previously mislabeled as "Zheng, Kaifeng" in bib — corrected to Riepin et al.
-- **Status:** To-read (priority) ○
+- **Core claim:** A joint LP optimizing spatial and temporal load shifting across geo-distributed datacenters achieves 24/7 CFE matching at minimum cost; cost savings scale linearly with flexible load share (1.29 ± 0.07 EUR/MWh per 1% flexibility); optimal datacenter separation is 300–400 km.
+- **Method:** LP with dedicated CFE procurement (not grid CI signals). Decision variables: renewable dispatch, storage charge/discharge, grid imports, spatial load shifts via virtual links, temporal load deviations. Temporal flexibility modeled as a daily conservation constraint: total compute within each 24-hour window is preserved; flexibility parameter f controls the allowed deviation band [1−f, 1+f]·d_n,t.
+- **Key result:** Costs drop from 215 EUR/MWh (inflexible) to 137 EUR/MWh at f=40% in Germany scenario. Results validated across 56 datacenter location pairs in Europe. Diminishing returns beyond 1000 km separation.
+- **Data:** ERA5 reanalysis (2013 representative year); renewable potentials via Atlite tool; PyPSA-Eur (37 European zones); Danish Energy Agency cost projections. No real-time API data; synthetic/simulated generation profiles.
+
+---
+
+#### CFE: Definition and Model
+
+**CFE definition (24/7 hourly matching):** Every kWh of electricity consumption is matched by carbon-free generation in the same hour and same location. Carbon-free = renewables (wind, solar, hydro) + nuclear. This is stricter than annual REC matching and different from minimizing CI.
+
+**Critical distinction from this thesis:** Riepin et al. explicitly state that "grid signals such as average carbon emission intensity or locational electricity prices have low value" in the 24/7 CFE context, because the model assumes dedicated CFE procurement (own wind/solar/nuclear assets), not dispatching workloads based on real-time grid CI. Their scheduling signal is therefore the quality of local renewable resources and the spatial wind correlation across distance — not the hourly grid CI from ElectricityMaps.
+
+**This thesis differs fundamentally:** We use real-time grid CI (and potentially CFE fraction) from ElectricityMaps as the scheduling signal, with no dedicated generation assets. We are optimizing *which grid hours to draw from*, not *which assets to build*. This is a different optimization problem.
+
+**Temporal flexibility constraint (their C_flex):**
+- Dispatched load d̃_n,t must stay within [(1−f)·d_n,t, (1+f)·d_n,t] at each hour
+- Daily conservation: sum over 24h of d̃_n,t = sum over 24h of d_n,t (no net shift across days)
+- f is the flexibility fraction (0–40% tested); in their model all flexible load is batch
+
+**Spatial mechanism:** Virtual links δ_ϑ,t allow load to be routed between datacenters. Wind capacity factor correlation drops sharply beyond 300–400 km, which is why that distance is optimal — farther apart means more independent renewable variability to exploit.
+
+---
+
+- **Thesis relevance:** Ch. 2 (closest prior LP structure for joint spatio-temporal scheduling); Ch. 3 (temporal flexibility constraint design — their daily conservation approach is one model for our C1 redesign; their f parameter maps to our inflexible/flexible demand split).
+- **Gap it exposes:** Uses synthetic ERA5 data, not real multi-year API data; dedicated CFE procurement model (asset-building), not grid-signal dispatch; European regions only; no CI-based objective; no backtesting.
+- **Note:** DOI corrected to 10.1016/j.adapen.2024.100202 (not 100175 as previously listed). Previously mislabeled as "Zheng, Kaifeng" in bib.
+- **Status:** Read ✓
 
 ---
 
@@ -468,7 +489,8 @@ Standardized methodology: processor time × TDP × PUE × carbon intensity. Foun
 | Temporal shifting | radovanovic2023, liu2012, hanafy2025, wiesner2024limitations, xu2025green |
 | Spatial routing | liu2012, riepin2024spatiotemporal, attenni2024shifting, wiesner2024limitations, li2025llm |
 | Joint spatio-temporal | riepin2024spatiotemporal, attenni2024shifting, asadov2025review, **this thesis** |
-| RF / renewable signal | liu2012, riepin2024spatiotemporal, **this thesis** |
+| CFE signal (dispatch) | radovanovic2023, **this thesis** |
+| CFE signal (investment) | riepin2024spatiotemporal |
 | Real grid data validation | radovanovic2023, xu2025green, **this thesis** (2yr) |
 | Production deployment | radovanovic2023, colangelo2025 |
 
@@ -481,6 +503,42 @@ Standardized methodology: processor time × TDP × PUE × carbon intensity. Foun
 | Nature/Cell Press | reconciling2024llm, tracking2025gaicarboon, carbonwater2025patterns |
 | arXiv preprint | hanafy2025, colangelo2025, attenni2024shifting, riepin2025cfe247, hungryllm2025 |
 | MDPI | asadov2025review, energies2025twostage |
+
+---
+
+## EDA Findings — CI vs CFE Relationship (2024–2025, 5 regions)
+
+> Computed from ElectricityMaps hourly data. OLS: CI ~ CFE and CI ~ RF per region. See `notebooks/01_EDA.ipynb`.
+
+### Key result: CFE is a much stronger predictor of CI than RF
+
+| Region | CI mean (gCO₂eq/kWh) | CV | R²(CI~RF) | R²(CI~CFE) | r(CI, CFE) | Better signal |
+|--------|----------------------|-----|-----------|-----------|------------|---------------|
+| PJM | 472 | 0.110 | 0.240 | 0.748 | −0.865 | CFE |
+| NYISO | 354 | 0.125 | 0.550 | 0.768 | −0.876 | CFE |
+| Finland | 83 | 0.420 | 0.043 | 0.968 | −0.984 | CFE |
+| Belgium | 191 | 0.398 | 0.449 | 0.958 | −0.979 | CFE |
+| Singapore | 533 | 0.112 | 0.059 | 0.059 | −0.243 | Neither (gas-dominated) |
+
+### Implied α values (multiplicative form CI·(1−α·CFE))
+
+OLS regression yields implied α ≈ 0.83–1.00 for PJM, NYISO, Finland, Belgium. Singapore implied α ≈ 0.70 but CFE signal is too weak to be meaningful. Baseline backtest uses α = 0.5 (conservative); sensitivity analysis covers {0, 0.5, 0.8, 1.0}.
+
+### Scheduling opportunity by CV
+
+Finland (CV=0.42) and Belgium (CV=0.40) have the highest temporal shifting potential. The key insight: the regions with the most scheduling value are not the dirtiest (PJM, Singapore) but those with the highest *relative* CI variability. Singapore has a narrow CI range (391–584) despite very high absolute CI.
+
+### CFE composition by region
+
+| Region | RF mean | Nuclear | CFE mean |
+|--------|---------|---------|----------|
+| Finland | 58.6% | 35.4% | 94.0% |
+| Belgium | 38.3% | 37.8% | 76.1% |
+| NYISO | 25.2% | 25.8% | 51.1% |
+| PJM | 7.7% | 34.3% | 42.0% |
+| Singapore | 2.7% | 0.0% | 2.7% |
+
+Nuclear is material for Finland and Belgium — the largest divergence between RF-based and CFE-based objectives will appear in these two regions.
 
 ---
 

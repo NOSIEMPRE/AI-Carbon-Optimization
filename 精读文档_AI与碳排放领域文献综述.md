@@ -2,8 +2,8 @@
 # *Annotated Literature Review: AI and Carbon Emissions in Data Centers*
 
 **用途 / Purpose**：PhD Thesis Literature Review 预备阅读笔记 *(Preparatory reading notes for literature review)*  
-**撰写时间 / Date**：2026-04-30  
-**覆盖论文数量 / Papers covered**：5 篇  
+**撰写时间 / Date**：2026-04-30（最后更新 2026-05-20）  
+**覆盖论文数量 / Papers covered**：6 篇  
 **语言 / Language**：中文为主，各段落附英文翻译 *(Chinese primary, with English translations throughout)*
 
 ---
@@ -15,8 +15,9 @@
 3. [CarbonFlex — 云集群碳感知供给与调度（系统设计）](#paper3) *| Carbon-aware Provisioning and Scheduling for Cloud Clusters (System Design)*
 4. [可再生能源与冷却感知的综合工作负载管理（运筹学经典）](#paper4) *| Renewable and Cooling-Aware Workload Management (Operations Research Classic)*
 5. [AI数据中心作为电网交互资产——凤凰城实地验证（最新工程实践）](#paper5) *| AI Data Centers as Grid-Interactive Assets — Phoenix Field Demonstration (Latest Engineering Practice)*
-6. [横向比较与综合思考](#synthesis) *| Cross-Paper Comparison and Synthesis*
-7. [Thesis 写作建议](#thesis-tips) *| Thesis Writing Recommendations*
+6. [时空负载迁移实现真正清洁计算——24/7 CFE 联合 LP（最近似先行研究）](#paper6) *| Spatio-temporal Load Shifting for Truly Clean Computing — 24/7 CFE Joint LP (Closest Prior Work)*
+7. [横向比较与综合思考](#synthesis) *| Cross-Paper Comparison and Synthesis*
+8. [Thesis 写作建议](#thesis-tips) *| Thesis Writing Recommendations*
 
 ---
 
@@ -723,6 +724,197 @@ AI 对数据中心电力需求的驱动已达到指数级增长，预计到 2030
 - **局限 / Limitation**：严格延迟要求的工作负载（Flex 0）无法参与功率削减，限制了总体可调节范围 *(Workloads with strict latency requirements (Flex 0) cannot participate in power reduction, limiting the total adjustable range)*
 - **局限 / Limitation**：商业部署涉及的监管、市场准入和激励机制问题尚未解决 *(Regulatory, market access, and incentive mechanism issues for commercial deployment remain unresolved)*
 - **未来 / Future**：跨地理位置的 AI 工作负载迁移；参与日前需求响应和频率调节市场；多数据中心区域协调控制 *(Geographic AI workload shifting; participation in day-ahead DR and frequency regulation; multi-datacenter regional coordination)*
+
+---
+
+<a name="paper6"></a>
+## 论文六 | Paper 6：Spatio-temporal load shifting for truly clean computing
+
+**基本信息 | Basic Information**
+- **标题 / Title**：Spatio-temporal load shifting for truly clean computing
+- **作者 / Authors**：Iegor Riepin, Tom Brown, Victor Zavala
+- **发表期刊 / Venue**：Advances in Applied Energy, Volume 17, 2025, Article 100202
+- **arXiv**：2405.00036
+- **DOI**：10.1016/j.adapen.2024.100202
+- **机构 / Institution**：TU Berlin（Riepin, Brown）; University of Wisconsin-Madison（Zavala）
+- **类型 / Type**：运筹学 + 能源系统优化论文 *(Operations Research + Energy Systems Optimization)*
+
+---
+
+### 6.1 研究背景与动机 | Background and Motivation
+
+数据中心通过年度可再生能源证书（REC）声称碳中和的做法存在根本性缺陷：年度匹配允许白天购买太阳能、夜间实际消耗化石燃料，两者在时间上完全错位。**24/7 CFE（Carbon-Free Energy）匹配**是解决这一问题的严格标准：每一度电在消耗的**同一小时、同一地点**都必须有碳无排放电力对应。
+
+*The claim of carbon neutrality via annual Renewable Energy Certificates (RECs) has a fundamental flaw: annual matching allows purchasing solar energy during the day while actually consuming fossil fuels at night, with no temporal alignment. **24/7 CFE (Carbon-Free Energy) matching** is the rigorous standard that addresses this: every kilowatt-hour of consumption must be matched by carbon-free electricity in the **same hour and same location**.*
+
+本文的核心洞察：**灵活的计算工作负载本身可以作为一种"虚拟储能"**，在时间和空间维度上进行迁移，利用可再生能源的地理互补性（风能跨距相关性低、太阳能存在时区差）以更低成本实现 24/7 CFE 匹配。
+
+*The paper's core insight: **flexible computing workloads themselves can act as "virtual storage,"** shifting across time and space to exploit the geographic complementarity of renewables (low wind correlation across distances, solar time zone differences) to achieve 24/7 CFE matching at lower cost.*
+
+---
+
+### 6.2 核心研究问题 | Core Research Questions
+
+> 对于拥有多个地理分布数据中心的超大规模运营商，以最低成本实现 24/7 CFE 匹配的最优时空负载调度策略是什么？灵活工作负载比例和数据中心间距对成本节约的影响分别有多大？
+
+> *For a hyperscale operator with geographically distributed datacenters, what is the optimal spatio-temporal load scheduling strategy to achieve 24/7 CFE matching at minimum cost? How do the flexibility ratio and inter-datacenter distance each affect cost savings?*
+
+具体子问题：
+1. 哪些地理信号驱动时空迁移的价值？*(What geographic signals drive the value of spatio-temporal shifting?)*
+2. 数据中心之间的最优距离是多少？*(What is the optimal distance between datacenters?)*
+3. 每增加 1% 灵活负载能节约多少成本？*(How much cost is saved per 1% additional flexible load?)*
+
+---
+
+### 6.3 CFE 的定义与核心概念 | CFE Definitions and Core Concepts
+
+#### ⭐ CFE（Carbon-Free Energy）分数的定义
+
+**24/7 CFE fraction** = 在每个小时内，被碳无排放电力满足的电力消耗比例。
+
+碳无排放电力包括：
+- 可再生能源：风能、太阳能、水电、地热、生物质
+- 核能（nuclear）
+
+**关键区分 / Critical distinction：**
+
+| 概念 / Concept | 范围 / Scope | 核能是否包含 / Nuclear included |
+|---|---|---|
+| RF（Renewable Fraction）| 可变可再生能源 | 否 |
+| CFE fraction（本文）| 所有碳无排放电源 | **是** |
+| REC 匹配 / REC matching | 年度可再生能源 | 否 |
+| 24/7 CFE 匹配 | 逐小时碳无排放 | **是** |
+
+本文明确指出：平均碳排放强度（CI）和电价等传统电网信号对于 24/7 CFE 匹配**价值有限**，因为该模型假设数据中心自建或长期合约专属碳无排放资产，而不是根据实时电网 CI 调度负载。
+
+*The paper explicitly states that traditional grid signals such as average carbon emission intensity (CI) and electricity prices have **low value** for 24/7 CFE matching, because the model assumes datacenters own or contract dedicated CFE assets rather than dispatching loads based on real-time grid CI.*
+
+#### ⭐ 与本文 thesis 的根本区别
+
+| | Riepin et al. (2024) | **本文 thesis** |
+|---|---|---|
+| 问题类型 / Problem type | 资产配置问题（建什么、建多少）| 调度决策问题（何时、在哪消耗电力）|
+| 调度信号 / Scheduling signal | 本地可再生资源质量 + 风能跨距相关性 | 实时电网 CI（ElectricityMaps）|
+| 数据来源 / Data | ERA5 再分析数据（合成）| ElectricityMaps API（真实历史数据）|
+| CFE 的角色 / CFE role | 目标：实现 24/7 CFE 匹配 | 信号：作为 CI 的补充调度依据 |
+| 时间范围 / Time range | 2013 年（代表气候年）| 2024–2025（两年真实数据）|
+| 验证方式 / Validation | 优化结果分析 | 历史回测（backtesting）|
+
+---
+
+### 6.4 优化模型 | Optimization Model
+
+#### 决策变量 | Decision Variables
+
+```
+g_{r,n,t}      : 可再生发电机 r 在节点 n、时刻 t 的发电量（renewable generator dispatch）
+ḡ_{s,n,t}      : 储能系统 s 在节点 n、时刻 t 的充电量（storage charging）
+g̱_{s,n,t}      : 储能系统 s 在节点 n、时刻 t 的放电量（storage discharging）
+im_{n,t}       : 节点 n 在时刻 t 从电网购电量（grid imports）
+ex_{n,t}       : 节点 n 在时刻 t 的多余发电消纳量（curtailment）
+δ_{ϑ,t}        : 虚拟链路 ϑ 在时刻 t 的负载迁移量（spatial load shift via virtual link）
+d̃_{n,t}        : 节点 n 在时刻 t 的实际调度负载（dispatched load, deviates from nominal d_{n,t}）
+```
+
+#### 目标函数 | Objective Function
+
+```
+minimize:  Σ_n Σ_t [ cost_generation(g_{r,n,t}) + cost_storage(s_{n,t}) + cost_import(im_{n,t}) ]
+           + annualized_capital_cost(generators, storage)
+```
+
+最小化 24/7 CFE 匹配的总成本，包括运营成本和年化资本成本。
+
+*Minimize total cost of achieving 24/7 CFE matching, including operational costs and annualized capital costs.*
+
+#### 核心约束 | Key Constraints
+
+```
+【能量平衡 / Energy balance】
+  g_{r,n,t} + g̱_{s,n,t} + im_{n,t} - ex_{n,t} - ḡ_{s,n,t} = d̃_{n,t}    ∀ n, t
+
+【24/7 CFE 匹配约束 / 24/7 CFE matching】
+  Σ_r g_{r,n,t} + g̱_{s,n,t} ≥ d̃_{n,t} - im_{n,t}    ∀ n, t
+  （每小时碳无排放电力必须覆盖消耗，电网购电部分不计入 CFE）
+  (Each hour, CFE generation must cover consumption; grid imports do not count as CFE)
+
+【⭐ 弹性约束 / Flexibility band (temporal shifting)】
+  (1 - f) · d_{n,t} ≤ d̃_{n,t} ≤ (1 + f) · d_{n,t}    ∀ n, t
+  （实际负载在名义负载 ±f 范围内波动，f 为灵活度参数）
+  (Dispatched load deviates within ±f of nominal demand; f is the flexibility parameter)
+
+【⭐ 日保守约束 / Daily conservation (temporal load conservation)】
+  Σ_{t ∈ day} d̃_{n,t} = Σ_{t ∈ day} d_{n,t}    ∀ n, each day
+  （每个自然日内总计算量守恒——不能把今天的工作推到明天）
+  (Total compute within each calendar day is preserved — no net shift across days)
+
+【⭐ 空间迁移约束 / Spatial shifting via virtual links】
+  d̃_{n,t} = d_{n,t} + Σ_{ϑ: dest=n} δ_{ϑ,t} - Σ_{ϑ: src=n} δ_{ϑ,t}    ∀ n, t
+  （虚拟链路允许负载在数据中心之间迁移，迁移量 δ_{ϑ,t} 受容量上限约束）
+  (Virtual links allow load migration between datacenters; migration volumes subject to capacity limits)
+
+【发电/储能容量 / Generator and storage capacity】
+  0 ≤ g_{r,n,t} ≤ CF_{r,n,t} · G_{r,n}    （容量系数 × 装机容量）
+  0 ≤ ḡ_{s,n,t}, g̱_{s,n,t} ≤ P_{s,n}     （充放电功率上限）
+  SOC_{s,n,t} ∈ [0, E_{s,n}]              （荷电状态范围）
+```
+
+**弹性度参数 f 的含义：**
+- f = 0：完全不灵活，每小时必须服务完全等于名义负载
+- f = 0.4：±40% 波动允许，且日总量守恒
+- 文中测试范围：f ∈ {0, 0.1, 0.2, 0.3, 0.4}
+
+---
+
+### 6.5 关键结果 | Key Results
+
+| 指标 / Metric | 数值 / Value |
+|---|---|
+| 每 1% 灵活负载节约成本 | 1.29 ± 0.07 EUR/MWh |
+| 基准成本（f=0，德国）| 215 EUR/MWh |
+| 最优成本（f=40%，德国）| 137 EUR/MWh（降低 36%）|
+| 最优数据中心间距 | 300–400 km |
+| 验证覆盖 | 欧洲 56 个数据中心位置组合 |
+| 超过 1000 km 的收益变化 | 边际收益递减，距离继续增加收益不显著 |
+
+**关键发现 / Key findings：**
+1. 风能在 300–400 km 距离上相关性显著下降，是空间迁移价值的物理来源
+2. 太阳能的时区差（地球自转）提供系统性的跨地区时间差，补充风能的随机互补性
+3. 结果对 56 个欧洲城市组合具有一致性，不依赖于特定选址
+4. 储能（电池）和灵活负载在功能上是互补的"虚拟储能"机制
+
+---
+
+### 6.6 数据说明 | Data
+
+- **气候数据 / Climate data**：ERA5 再分析数据集（2013 年为代表气候年）
+- **可再生发电模拟 / Renewable generation**：Atlite 工具基于 ERA5 生成逐小时容量系数
+- **欧洲电力系统 / European power system**：PyPSA-Eur 模型（37 个欧洲电网区）
+- **技术成本 / Technology costs**：丹麦能源局 2025 年预测值
+- **注意 / Note**：全部为合成/模拟数据，**不使用真实 API 历史数据**，与本文 thesis 使用 ElectricityMaps 真实数据有根本区别
+
+---
+
+### 6.7 局限性与 Gap | Limitations and Gaps
+
+1. **完美预见假设 / Perfect foresight**：模型假设提前知道所有需求曲线，现实中不可行
+2. **合成数据 / Synthetic data**：ERA5 2013 年单一气候年，不包含真实 API 逐小时数据，无法进行真实历史回测
+3. **欧洲数据 / European-only data**：不覆盖亚太（Singapore）或北美（PJM/NYISO）
+4. **专属资产假设 / Dedicated asset assumption**：假设数据中心自建可再生电站，不适用于依赖电网信号调度的场景（本文 thesis 的场景）
+5. **灵活性成本忽略 / Ignores flexibility costs**：未计入延迟工作负载的隐性成本（SLA 惩罚、用户体验下降）
+6. **单一 f 参数 / Single flexibility parameter**：用单一 f 刻画灵活度，未区分不同类型工作负载的差异化弹性
+
+---
+
+### 6.8 对本文 thesis 的启示 | Implications for This Thesis
+
+1. **LP 结构参考**：本文的弹性约束（C_flex）和日保守约束是设计 thesis LP 时间约束的直接参考模板。`(1±f)·d_{n,t}` 的形式等价于区分 inflexible（f=0 部分）和 flexible（f>0 部分）负载。
+
+2. **CFE 信号的定位**：Riepin et al. 使用 CFE fraction 作为目标（build enough to meet CFE hourly），而本文 thesis 可以使用 CFE fraction 作为**调度信号**（prefer hours where grid CFE fraction is high）。两者是不同的建模范式，thesis 的做法在文献中尚无直接先例，构成原创贡献。
+
+3. **文献定位**：本文 thesis 是 Riepin et al. 的"信号侧"互补：他们解决了"如何配置碳无排放资产"，thesis 解决了"在不建设专属资产的前提下如何通过调度降低碳排放"。
+
+4. **距离发现的应用**：300–400 km 的最优间距结论可用于 Ch. 5 讨论：thesis 的五个 region（PJM、NYISO、Finland、Belgium、Singapore）跨越大洲，远超 400 km，理论上可获得完整的空间迁移收益。
 
 ---
 
