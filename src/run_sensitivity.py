@@ -52,6 +52,12 @@ RESULTS_DIR.mkdir(parents=True, exist_ok=True)
 BASELINE = dict(alpha=0.5, gamma=0.0, eta=0.0, sigma=1.0,
                 kappa=1.0, rho=1.0, delta=24)
 
+# Full-constraint operational parameters used for heuristic comparison (F5).
+# sigma=0.6 caps off-home to 60 %; kappa=0.5 and rho=0.7 enforce ramp-rate
+# and dynamic-range limits.  Greedy respects sigma; LP respects all three.
+OPERATIONAL_BASELINE = dict(alpha=0.5, gamma=0.0, eta=0.0, sigma=0.6,
+                            kappa=0.5, rho=0.7, delta=24)
+
 SWEEPS = {
     "alpha": [0.0, 0.25, 0.5, 0.75, 1.0],
     "sigma": [0.3, 0.5, 0.7, 0.9, 1.0],
@@ -147,21 +153,75 @@ def fcfs_carbon(ci_win: np.ndarray, demand: float,
 
 def greedy_carbon(ci_win: np.ndarray, cfe_win: np.ndarray,
                   demand: float, alpha: float, gamma: float,
-                  c_max: np.ndarray, r0: int = 0) -> tuple[np.ndarray, float]:
-    """Sort region-hour pairs by effective cost; fill cheapest first."""
-    T = ci_win.shape[1]
-    eff = ci_win * (1.0 - alpha * cfe_win)
-    eff[[r for r in range(R) if r != r0]] += gamma
-    x = np.zeros((R, T))
+                  c_max: np.ndarray, r0: int = 0,
+                  sigma: float = 1.0) -> tuple[np.ndarray, float]:
+    """Sort region-hour pairs by effective cost; fill cheapest first.
+
+    When sigma < 1.0 (geographic cap active), each hour's off-home fraction
+    is capped at sigma.  At each hour we allocate a (sigma, 1-sigma) split
+    between the best off-home region and home, ordered by blended cost.
+    """
+    R_loc = ci_win.shape[0]
+    T     = ci_win.shape[1]
+    eff   = ci_win * (1.0 - alpha * cfe_win)
+    eff[[r for r in range(R_loc) if r != r0]] += gamma
+    x         = np.zeros((R_loc, T))
     remaining = demand
-    order = np.argsort(eff.flatten())
-    for flat_idx in order:
-        if remaining <= 0:
-            break
-        r_i = flat_idx // T
-        alloc = min(remaining, c_max[r_i])
-        x.flat[flat_idx] = alloc
-        remaining -= alloc
+
+    if sigma >= 1.0:
+        # No geographic constraint — original cheapest-slot greedy.
+        order = np.argsort(eff.flatten())
+        for flat_idx in order:
+            if remaining <= 0:
+                break
+            r_i   = flat_idx // T
+            alloc = min(remaining, c_max[r_i])
+            x.flat[flat_idx] = alloc
+            remaining -= alloc
+    else:
+        off_regions = [r for r in range(R_loc) if r != r0]
+        if off_regions:
+            off_eff      = eff[off_regions, :]                        # (n_off, T)
+            best_local   = np.argmin(off_eff, axis=0)                 # (T,)
+            best_off_r   = np.array(off_regions)[best_local]          # (T,)
+            best_off_eff = off_eff[best_local, np.arange(T)]          # (T,)
+            use_off      = best_off_eff < eff[r0, :]
+            blend_eff    = np.where(use_off,
+                                    sigma * best_off_eff + (1 - sigma) * eff[r0, :],
+                                    eff[r0, :])
+        else:
+            use_off    = np.zeros(T, dtype=bool)
+            blend_eff  = eff[r0, :]
+            best_off_r = np.full(T, r0, dtype=int)
+
+        for t in np.argsort(blend_eff):
+            if remaining <= 0:
+                break
+            if use_off[t]:
+                # Allocate sigma fraction off-home, (1-sigma) at home.
+                max_total = min(
+                    c_max[best_off_r[t]] / sigma,
+                    c_max[r0] / (1.0 - sigma),
+                    remaining,
+                )
+                x[best_off_r[t], t] += sigma * max_total
+                x[r0, t]            += (1.0 - sigma) * max_total
+                remaining           -= max_total
+            else:
+                alloc    = min(remaining, c_max[r0])
+                x[r0, t] += alloc
+                remaining -= alloc
+
+        # Serve any leftover at home (cheapest remaining home slots).
+        if remaining > 1e-9:
+            for t in np.argsort(eff[r0, :]):
+                if remaining <= 0:
+                    break
+                avail    = max(0.0, float(c_max[r0]) - float(x[r0, t]))
+                alloc    = min(remaining, avail)
+                x[r0, t] += alloc
+                remaining -= alloc
+
     return x, float((x * ci_win).sum())
 
 
@@ -224,7 +284,7 @@ def run_backtest(df: pd.DataFrame, window: int, demand: float,
         x_unif, c_unif = uniform_carbon(ci_win, demand)
         x_fcfs, c_fcfs = fcfs_carbon(ci_win, demand, c_max, delta)
         x_gr,   c_gr   = greedy_carbon(ci_win, cfe_win, demand,
-                                       alpha, gamma, c_max)
+                                       alpha, gamma, c_max, sigma=sigma)
 
         # Oracle: LP over extended window (oracle_window hours centred here)
         # We use the next oracle_window hours if available, else skip
@@ -368,6 +428,18 @@ def main():
         df_sched_c.to_parquet(RESULTS_DIR / "schedule_sample_constrained.parquet",
                               index=False)
         print(f"  Schedule sample (constrained): {len(df_sched_c)} hours saved")
+
+    # ── Operational backtest for F5 heuristic comparison (full constraints) ──
+    ob = OPERATIONAL_BASELINE
+    print(f"\nRunning operational backtest (σ={ob['sigma']}, κ={ob['kappa']}, ρ={ob['rho']}) …")
+    df_heur, _ = run_backtest(
+        df, window, demand,
+        alpha=ob["alpha"], gamma=ob["gamma"], eta=ob["eta"],
+        sigma=ob["sigma"], kappa=ob["kappa"], rho=ob["rho"],
+        delta=ob["delta"],
+    )
+    df_heur.to_parquet(RESULTS_DIR / "heuristic_backtest.parquet", index=False)
+    print(f"  Saved heuristic_backtest.parquet  ({len(df_heur)} windows)")
 
     sweep_records = []
     for s in seasons:

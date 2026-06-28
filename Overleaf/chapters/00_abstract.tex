@@ -1,0 +1,10 @@
+\begin{center}
+{\large\bfseries\color{ieblue} Abstract}
+\end{center}
+\vspace{0.3cm}
+
+The electricity demand of AI workloads is growing faster than electricity grids can decarbonize, making the operational carbon of data-center computing a first-order sustainability concern. Because grid carbon intensity varies across both regions and hours, flexible workloads can be shifted in time and space toward cleaner electricity, yet existing carbon-aware schedulers either rely on heuristics with no optimality guarantee or treat the temporal and spatial dimensions separately. This thesis formalizes carbon-aware scheduling as a deterministic linear program that minimizes operational carbon by jointly choosing when and where flexible load runs across five structurally diverse grid regions, subject to seven operational constraints and driven by hourly carbon-intensity and carbon-free-energy signals from ElectricityMaps over a two-year horizon. The optimization model and its operational constraints are validated through a behavioural perturbation test and an integration check on real data. The study has three main findings. First, under unconstrained flexibility the model reduces carbon by up to 78\,\% relative to a no-optimization baseline. Second, a sensitivity analysis identifies geographic flexibility as the dominant driver of carbon savings. Third, an additive decomposition shows that routing load to cleaner regions accounts for almost all of the saving, while shifting load in time alone can increase carbon. The thesis contributes a joint spatio-temporal scheduling model that is provably optimal by construction and validated on real data, together with an empirical account of which form of flexibility drives carbon savings.
+
+\vspace{0.3cm}
+\noindent\textbf{Keywords:} carbon-aware scheduling, data centers, sustainable AI.
+\clearpage

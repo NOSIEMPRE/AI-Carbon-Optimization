@@ -1,0 +1,187 @@
+% ============================================================================
+%  Master's Thesis — Carbon-Intelligent Workload Scheduling for AI Data Centers
+%  Yaxin Wu · MBDS, IE University · Supervisor: Prof. Bissan Ghaddar
+%
+%  Formatting per submission spec: 12pt Times New Roman, 1.5 line spacing,
+%  APA 7 citation style. Body (arabic-numbered) is capped at 30 pages;
+%  front matter (roman) and references/appendices are excluded from the count.
+%  Compile: pdflatex -> bibtex -> pdflatex x2
+% ============================================================================
+\documentclass[12pt,a4paper]{article}
+
+% ── Page geometry ───────────────────────────────────────────────────────────
+\usepackage[margin=2.5cm]{geometry}
+
+% ── Times New Roman (text + math) ────────────────────────────────────────────
+\usepackage{newtxtext}
+\usepackage{newtxmath}
+
+% ── Line spacing 1.0 (single) per submission spec ────────────────────────────
+\usepackage{setspace}
+\singlespacing
+
+% ── Paragraphs: indent every first line (APA style), including after headings ─
+\usepackage{indentfirst}
+\setlength{\parindent}{1.5em}
+
+% ── Math, tables, figures ────────────────────────────────────────────────────
+\let\Bbbk\relax  % avoid amssymb/newtxmath \Bbbk redefinition clash
+\usepackage{amsmath, amssymb}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{tabularx}
+\usepackage{siunitx}   % decimal-aligned numeric columns (S)
+\sisetup{detect-all=true}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{caption}
+\usepackage{placeins}   % \FloatBarrier to keep figures within their (sub)section
+\usepackage{tikz}
+\usetikzlibrary{shapes.geometric, arrows.meta, positioning, fit, backgrounds}
+\captionsetup{font=small,labelfont=bf}
+\graphicspath{{figures/results/}{figures/analysis/}{figures/eda/}}
+
+% ── APA 7 citations (reuses \citep/\citet via natbibapa) ─────────────────────
+\usepackage[natbibapa]{apacite}
+
+% ── Section styling ──────────────────────────────────────────────────────────
+\usepackage{titlesec}
+\definecolor{ieblue}{RGB}{13, 27, 94}
+\titleformat{\section}{\large\bfseries\color{ieblue}}{\thesection}{0.6em}{}
+\titleformat{\subsection}{\normalsize\bfseries\color{ieblue}}{\thesubsection}{0.6em}{}
+\titleformat{\subsubsection}{\normalsize\itshape\color{ieblue}}{\thesubsubsection}{0.6em}{}
+
+% ── Header / footer ──────────────────────────────────────────────────────────
+\usepackage{fancyhdr}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small\itshape Carbon-Intelligent Workload Scheduling for AI Data Centers}
+\fancyhead[R]{\small\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+
+% ── Hyperlinks ───────────────────────────────────────────────────────────────
+\usepackage{hyperref}
+\hypersetup{colorlinks=true, linkcolor=ieblue, citecolor=ieblue, urlcolor=ieblue}
+
+% ── Figure numbering as F1, F2, ... (matches existing figure assets) ─────────
+% (Optional) keep standard "Figure N" numbering for a thesis; comment out to
+% revert to F-prefixed labels used in the proposal.
+% \renewcommand{\thefigure}{F\arabic{figure}}
+
+\begin{document}
+
+% ============================================================================
+%  FRONT MATTER  (roman page numbers; excluded from 30-page body count)
+% ============================================================================
+\pagenumbering{roman}
+\pagestyle{plain}
+
+% ── Title page ───────────────────────────────────────────────────────────────
+\begin{titlepage}
+\centering
+\vspace*{2cm}
+{\LARGE\bfseries\color{ieblue}
+Carbon-Intelligent Workload Scheduling\\[6pt]
+for AI Data Centers\par}
+\vspace{12pt}
+{\large A Deterministic Mathematical Optimization Approach\par}
+\vspace{2cm}
+{\large\bfseries Yaxin Wu\par}
+\vspace{0.4cm}
+{\normalsize Master in Business Data Science\par}
+{\normalsize IE University\par}
+\vspace{2cm}
+\begin{tabular}{rl}
+\textbf{Supervisor} & Prof.\ Bissan Ghaddar\\[4pt]
+\textbf{Programme}  & MBDS, IE University\\[4pt]
+\textbf{Date}       & July 2026\\
+\end{tabular}
+\vfill
+\begin{minipage}{0.88\textwidth}
+\footnotesize
+\noindent\textbf{Ethics Statement.}\ \ This study was conducted in accordance with the principles of academic integrity and responsible research conduct. It draws solely on publicly available, aggregated electricity-grid data (hourly carbon intensity and carbon-free energy fractions from ElectricityMaps), used in compliance with the provider's terms of use; it involves no human participants and no personal or sensitive data, so research-ethics-committee approval was not required. All results are reported faithfully, without fabrication, falsification, or selective reporting, and every external source is cited. To support reproducibility, the deterministic model and the code and data used to generate every result are openly available in the accompanying public repository. Generative AI tools were used to assist with language editing, drafting, and the preparation of code and figures; the author verified all such output and takes full responsibility for the content of this thesis. The research aims to reduce data-center carbon emissions, and its limitations, notably the use of average rather than marginal emissions and the exclusion of embodied carbon and water, are stated explicitly so as not to overstate its benefits. The author declares no conflicts of interest.
+\end{minipage}
+\vspace{0.6cm}
+\end{titlepage}
+
+% ── Abstract ─────────────────────────────────────────────────────────────────
+\input{chapters/00_abstract}
+
+% ── Table of contents ────────────────────────────────────────────────────────
+\tableofcontents
+\clearpage
+
+% ============================================================================
+%  BODY  (arabic page numbers; this is the 30-page-capped content)
+% ============================================================================
+\pagenumbering{arabic}
+\pagestyle{fancy}
+
+\input{chapters/01_introduction}
+\input{chapters/02_litreview}
+\input{chapters/03_problem}
+\input{chapters/04_formulation}
+\input{chapters/05_results}
+\input{chapters/06_conclusion}
+% \input{chapters/04_model}
+% \input{chapters/05_validation}
+% \input{chapters/06_results}
+% \input{chapters/07_discussion}
+% \input{chapters/08_conclusion}
+
+% ============================================================================
+%  REFERENCES  (excluded from 30-page count)
+% ============================================================================
+\clearpage
+\bibliographystyle{apacite}
+\bibliography{references}
+
+% ============================================================================
+%  APPENDIX  (excluded from the page count)
+% ============================================================================
+\clearpage
+\appendix
+\renewcommand{\thesection}{Appendix~\Alph{section}}
+\renewcommand{\thefigure}{A.\arabic{figure}}
+\setcounter{figure}{0}
+\section{Supplementary Figures}
+\label{app:supp}
+
+The following figures support the exploratory analysis of Section~\ref{sec:problem} and the results of Section~\ref{sec:results}. They are referenced from the main text where relevant and collected here to keep the body within the page limit.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=\linewidth]{eda_diurnal}
+\caption{Average carbon intensity by hour of day (UTC) per region. The intra-day range (shown in the legend) is largest for Belgium, driven by midday solar, and smallest for Finland, whose carbon intensity is nearly flat across the day despite being the most variable region overall on a multi-day basis.}
+\label{fig:eda-diurnal}
+\end{figure}
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.82\linewidth]{eda_cfe_composition}
+\caption{Mean composition of carbon-free supply by region, split into renewable (wind, solar, hydro) and nuclear shares. PJM and NYISO reach much of their carbon-free fraction through nuclear rather than renewables, which is why a renewables-only signal would misrepresent their cleanliness and the carbon-free energy fraction is used instead.}
+\label{fig:eda-comp}
+\end{figure}
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=\linewidth]{perturbation_test}
+\caption{Hourly schedules for three of the perturbation scenarios in Table~\ref{tab:pert} (the CI shock is reported in the table but not plotted). Demand increments flow to the cleanest region (left), a shorter deferral window forces load out of the clean hours and raises carbon (centre), and a tighter hourly cap first spreads Finland's load and then reduces it (right).}
+\label{fig:f-pert}
+\end{figure}
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=\linewidth]{schedule_sample}
+\caption{No-shift baseline versus the LP-optimized schedule for one representative window, with the carbon-intensity signal below. The LP routes the batch to Finland and spreads it across hours to satisfy the ramp limit, cutting window carbon from 533 to 53~gCO\textsubscript{2}.}
+\label{fig:f-sched}
+\end{figure}
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.92\linewidth]{cv_regression}
+\caption{Within-region carbon saving from timing alone against the coefficient of variation of carbon intensity, one point per region. Timing helps materially only in the high-variability grids (Belgium, Finland) and barely at all in the flat ones (PJM, NYISO, Singapore).}
+\label{fig:f-cv}
+\end{figure}
+
+\end{document}

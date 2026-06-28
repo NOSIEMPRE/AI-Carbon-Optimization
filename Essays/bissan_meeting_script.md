@@ -2,170 +2,220 @@
 
 For: Bissan Ghaddar
 Duration: ~15 min
-Context: follow-up to the 2026-06-15 meeting where you flagged the per-constraint
-testing approach, the unconstrained-vs-constrained schedule comparison, and asked
-me to verify whether kappa/rho/alpha having small aggregate impact was a bug.
+Context: follow-up to the 2026-06-15 meeting. You raised three things: the
+per-constraint testing approach doesn't make sense, the schedule comparison
+in Figure F0 compares the wrong things, and you didn't believe kappa, rho,
+and alpha showing almost no effect was real.
 
 ---
 
-## Opening
+## 1. The model hasn't changed
 
-Since last time I addressed all three things you raised. I rewrote the validation
-test, fixed the schedule comparison, redid the sensitivity and heuristic figures
-as two separate plots, and ran a diagnostic to check whether kappa, rho, and alpha
-having small effect is real or a bug. I'll go through each.
+Five regions, three objective terms, seven constraints. Nothing below changed
+the model, only how it is tested and how results are read.
 
 ---
 
-## 1. LP Model (unchanged, brief recap)
+## 2. Validation
 
-Five regions: PJM, NYISO, Finland, Belgium, Singapore. Decision variable x_{r,t}:
-load assigned to region r at hour t. Three-term objective: carbon cost
-(CI times one minus alpha times CFE), transfer cost (gamma per kWh routed
-off-home), and equity (eta times M, the most-burdened region's carbon total).
+Validation has two parts: a perturbation test and an integration check.
 
-Seven constraints, C1-C7, same as before. C6 (ramp rate) and C7 (dynamic range)
-are written as two one-sided inequalities each, following Wijayawardana and Chien.
+The perturbation test is what you asked for. A model could assign load to the
+same region every window regardless of carbon intensity, satisfy every
+constraint, and still be wrong about the mechanism. The perturbation test uses a
+small constructed instance with a known expected outcome, then changes one
+parameter at a time, with all seven constraints active throughout, to check
+the solution moves in the expected direction. Figure F1 shows three
+scenarios and their outcomes (demand increase, delta tightening, C_max
+squeeze). The CI shock is verified in the thirteen checks but not plotted
+as a separate panel.
 
----
+The integration check was not something you asked for. I added it because
+the perturbation test uses constructed CI values, not real data, so it only
+tells you the logic is correct, not whether the formulation holds on the
+actual data the thesis depends on. The integration check runs the full model
+on 168 hours of real data with all seven constraints active, and confirms
+none are violated. Figure F8 shows the binding/slack table and summary
+statistics for all seven constraints.
 
-## 2. Validation — now two tests, not one
+Three real regions, six hours: PJM as home (CI 564--613), Finland as the
+cleanest destination (CI 52--55), Belgium as the medium option (CI 100--138).
+Data from 2024-07-17 00:00--05:00 UTC. Baseline: FI gets 6.0 kWh, PJM
+gets 4.0 kWh, BE gets 0.
 
-**Integration test (what I had before, kept as-is).** Full LP, all seven
-constraints active simultaneously, on a representative instance: seven days of
-real data, three regions, full-model parameters. All seven pass. Four binding
-(C1, C4, C5, C6), three slack (C2, C3 upper, C7) — slack is informative, not a
-failure, it means that constraint isn't the bottleneck for this particular window.
+CI shock (not plotted in Figure F1): FI's CI raised from 52--55 to 700
+flat, making it dirtier than PJM at around 600. FI's load drops to zero and
+BE picks up the full 6.0 kWh. The model reroutes as soon as a region
+becomes the dirtiest option. Two checks cover this scenario and both pass.
 
-**New: perturbation test.** This addresses what you specifically asked for —
-take all constraints together on a small instance, then change one parameter at
-a time and check the solution reacts the way you'd expect by hand, rather than
-just checking constraint satisfaction.
+Panel A (demand): total demand raised from 10 to 18 kWh. All 18 get served
+with no shortfall and FI's load scales up to 10.8 kWh. Extra demand goes to
+the preferred destination first, not to a fallback.
 
-Instance: 3 regions, 6 hours, hand-designed CI (home flat-dirty, one region with
-a clean dip mid-window, one flat-medium). All constraints active. Four scenarios:
+Panel B (δ, max deferral time): tightened from 6 hours to 1 hour. With 6
+hours the model reaches FI's low-CI hours; carbon is 2,574 gCO2. With 1
+hour it has to serve at t=0 from PJM; carbon rises to 2,808. How long load
+can be deferred is what makes carbon savings possible; δ directly caps how
+much is achievable. The 8.2 percent sensitivity result in the backtest comes
+from the same mechanism at scale.
 
-- Raise the clean region's CI above the home region's → load should move to the
-  new cheapest region. It does: clean region's share drops from 6.0 to 0.0 kWh,
-  medium region's rises from 0.0 to 6.0.
-- Raise demand from 10 to 18 kWh → all of it should still get served, and the
-  previously-preferred region's load shouldn't decrease. Confirmed.
-- Tighten the deadline so the batch can't reach the clean hour → carbon should
-  rise. It does, from 2,087 to 2,350.
-- Squeeze a region's capacity. I actually ran this twice, because the first
-  version gave a false positive — a mild squeeze (3 kWh/h, window can still fit
-  18 kWh) showed "no change" by design (capacity is a per-hour cap, so the LP
-  just spreads load over more hours, doesn't need to overflow), but my pass/fail
-  check had no tolerance margin and a floating-point rounding artifact made it
-  print PASS for the wrong reason. Fixed by adding a tolerance and a genuinely
-  severe squeeze (0.5 kWh/h) that does force real overflow to other regions.
+Panel C (C_max, hourly capacity cap on FI): squeezed in two steps. A mild
+squeeze (3 kWh/h) spreads FI's load over more hours without reducing the
+total served, which stays at 6.0 kWh. A severe squeeze (0.5 kWh/h) makes
+the window-total cap binding at 3 kWh, forcing the shortfall to BE and PJM.
+Mild constraints change the shape of the schedule; severe ones reduce how
+much can be served from the cleanest region.
 
-All eleven checks pass for the right reason this time.
+All three plotted perturbations produce the expected response, with all
+seven constraints active throughout. The constraints are not just feasible,
+they are load-bearing: each one changes the solution in a predictable
+direction when its parameter is tightened.
 
----
+Thirteen checks total, all thirteen pass. The count: one baseline reference
+check confirming the clean region dominates before any perturbation, then
+two checks for the CI shock, three for the demand increase, two for δ
+(max deferral time), two for the mild capacity squeeze, and three for the severe one.
 
-## 3. Solution Exhibit — fixed the comparison basis
-
-You said comparing unconstrained-LP against constrained-LP doesn't make sense,
-since neither represents what happens without the model — the right comparison
-is no-shift versus LP-shift. I redid Figure F0 with that basis.
-
-Left panel: no-shift, the batch served immediately at the home region, exactly
-as it arrives — that's literally what FCFS reduces to here since capacity
-matches the batch size. Right panel: LP-shift, with kappa 0.2 and rho 0.4 active.
-In this window: no-shift costs 533 gCO2; LP routes to Finland and spreads over
-five hours, costing 53 — a 90% reduction. I kept the framing explicit that this
-is one illustrative window, and the two-year backtest is what the actual claims
-rest on.
-
----
-
-## 4. Sensitivity Analysis — split into LP-only, plus a diagnostic
-
-Two things changed here. First, the figure is now LP-only — no heuristics mixed
-in, exactly what you asked for. Second, I ran a diagnostic on why kappa, rho, and
-alpha show small aggregate effect, since you said you didn't believe a flat
-result across the parameter range.
-
-**Result: it's not flat, and it's not a bug, but the explanation isn't what I
-originally assumed either.** I checked the actual mechanism rather than just
-asserting one.
-
-For kappa and rho: each window injects one demand batch, so the unconstrained LP
-always wants to dump it into a single best hour — meaning the ramp constraint is
-at its structural maximum in literally every one of the 731 windows. Kappa and
-rho are binding 100% of the time, not rarely. The reason the aggregate carbon
-cost is still small is that the region the LP prefers usually has a locally
-smooth CI profile around its best hour, so spreading the batch over a few more
-hours to satisfy the ramp cap is cheap. That's a real, checked mechanism, not an
-assumption.
-
-For alpha: I compared the actual allocation, not just the resulting carbon, at
-alpha=0 versus alpha=1 on a sample of 100 windows. The allocation differs in 43
-of them — alpha is doing something real to the schedule. The carbon barely
-moves because CI and CFE are strongly negatively correlated within each region
-(r=-0.98 Finland, -0.98 Belgium, -0.87 NYISO, -0.61 PJM) — the hours the CFE
-discount favors are usually already the low-CI hours, so the discount rarely
-redirects the schedule toward something meaningfully worse. Singapore is the
-exception (r=-0.24, flat 2.7% CFE), where alpha has almost nothing to act on.
-
-Sigma is still completely dominant: +373.7% carbon from tightening 1.0 to 0.3,
-an order of magnitude above everything else (eta +20.2%, delta +8.2%, rho +2.9%,
-kappa +2.1%, alpha +0.2%).
+One flag: the first version gave a false pass on the mild capacity squeeze
+due to floating-point rounding. Adding a tolerance and the severe-squeeze
+case fixed it. The fix changed what the test was actually checking.
 
 ---
 
-## 5. Heuristic Analysis — separate figure, efficiency ratio
+## 3. Schedule exhibit (Figure F2)
 
-Also separated per your request — no longer mixed with the sensitivity sweep.
-New metric: LP efficiency ratio, (C_Uniform − C_alg)/(C_Uniform − C_LP). LP is
-100% by construction, Oracle 103.9% (longer look-ahead), Greedy 100.0%
-(matches LP when C6/C7 are loose), FCFS −65.7% (worse than doing nothing —
-concentrating in dirty PJM beats Uniform's automatic geographic spread).
+You said comparing unconstrained LP to constrained LP doesn't show the
+model's value. I changed the comparison to no-shift versus LP-shift.
 
----
-
-## 6. Seasonal Analysis
-
-Unchanged. Summer gives the highest LP saving (84.1%), spring the lowest
-(73.4%). Finland absorbs the majority of load in every season, more in summer
-as the CI gap versus PJM widens.
-
-(I dropped the constraint-combination scenario table and figure that used to be
-here — the conclusion depended on the order constraints were stacked in, which
-isn't defensible, and the tornado diagram already makes the same point about
-sigma dominance more rigorously.)
+Figure F2 overlays two schedules on the same 24-hour CI curve. No-shift
+drops the entire batch in the first hour at PJM. LP-shift spreads load over
+several hours and routes to Finland, tracking the CI curve. The gap between
+the two shows the full value of the approach: most of it comes from routing,
+not from timing within PJM. One window for illustration; the two-year
+backtest carries the actual claims.
 
 ---
 
-## 7. Decomposition and Cross-Region Analysis
+## 4. Sensitivity analysis (Figure F3)
 
-Unchanged, numbers hold: spatial-only 75.6%, temporal-only −35.6%, joint 78.4%,
-interaction 38.4%. Negative temporal-only is specific to PJM as home region —
-Uniform already spreads a fifth of load to cleaner regions, so locking
-everything to a dirty home region and only optimizing timing does worse than
-that baseline.
+You asked for the LP alone and didn't believe kappa, rho, and alpha could
+have almost no effect. Both addressed: a separate LP-only figure and a
+mechanism check for each near-zero parameter.
 
-CV regression: Finland/Belgium CV~0.40-0.42, temporal saving 13-28%; PJM/NYISO/
-Singapore CV~0.11-0.13, temporal saving 5-8%. Framed explicitly as a five-point
-diagnostic, not a formal regression.
+Figure F3 is a horizontal tornado diagram, one bar per parameter, sorted by
+width. Sigma's bar completely dominates; the other five are clustered near
+zero at the same scale. Geographic flexibility is the binding constraint on
+what the model can achieve.
+
+One methodological note: in the OAT sweep, each parameter is tested with all
+others at their loosest values. The near-zero effects for kappa, rho, and
+alpha are not an artifact of other constraints masking the signal.
+
+Kappa and rho are binding in almost every window, but the carbon cost of
+complying is small because the preferred region's CI profile is smooth around
+its best hour. Tightening the schedule shape costs almost nothing in carbon.
+
+Alpha changes which hours are chosen in a meaningful share of windows, but
+lands on the same low-carbon slots regardless, because CI and CFE are
+strongly correlated in most regions. The exception is Singapore, where CFE
+barely varies.
+
+The near-zero carbon effect for all three is a property of the data, not a
+model failure.
+
+One note on delta: the 48-hour and 24-hour settings produce identical
+results. A 24-hour planning window already captures every available
+scheduling opportunity; the sensitivity cost from delta comes entirely from
+tightening below 24 hours.
 
 ---
 
-## 8. Where Things Stand
+## 5. Scheduler comparison (Figure F5)
 
-Validation is now two tests covering different failure modes: constraint
-satisfaction on a representative instance, and directional correctness on a
-hand-traceable instance. Sensitivity has a checked explanation for why three of
-six parameters show small effect, not just an assertion. The schedule exhibit
-uses a defensible comparison basis. Sensitivity and heuristics are properly
-separated.
+This separates LP from the heuristics, which you asked for. I follow the
+convention from the carbon-aware scheduling literature: put every method on
+one axis, showing how much carbon each saves relative to the no-optimization
+baseline. Positive means it saves carbon versus doing nothing, negative means
+it does worse. I changed this from an earlier LP-efficiency-ratio version,
+because that pinned LP at 100% by definition and made the comparison look
+circular.
 
-Decomposition and CV regression are the parts I'd still flag as having the most
-room to develop — five data points for the CV regression, and the temporal-only
-finding is conditional on PJM being the home region.
+All four methods run under the same full operational constraints: sigma=0.6,
+kappa=0.5, rho=0.7, delta=24. These reflect a real deployment, not the
+loosest possible settings.
+
+The four methods bracket the LP from above and below. Oracle, the LP with a
+full week of look-ahead, saves 36.8%. It beats the LP only because it assumes
+perfect knowledge of a week of future carbon intensity, which you do not have
+at deployment time. It is a ceiling, not a competitor.
+
+Greedy saves 31.5%, essentially identical to the LP on this data. But that
+closeness is luck, not a guarantee: Greedy only enforces the sigma geographic
+cap and silently violates the ramp and range limits a deployed system has to
+respect. Its near-optimal carbon is a property of this dataset, not of the
+algorithm, which is exactly the uncertainty a provably constrained LP removes.
+
+FCFS saves -51.5%, meaning it emits about half as much again as doing nothing.
+At PJM's consistently high CI, serving jobs in arrival order front-loads them
+into the dirtiest hours. FCFS is a common default in production schedulers, so
+this is the realistic status quo, not a straw man.
+
+The takeaway: the LP captures almost all the saving available to a
+realistically-informed scheduler, 31.4% against Oracle's 36.8% ceiling, and
+it is the only method that both reaches that saving and provably respects
+every constraint. Greedy ties it only by ignoring constraints; FCFS, the
+status quo, is actively harmful. The ranking holds across all four seasons.
+
+For context, the 78.4% headline figure in the decomposition (Figures F6 and
+F7) is the unconstrained result at sigma=1.0 and is a different scenario.
 
 ---
 
-Is there anything in the diagnostic reasoning you want me to dig into further,
-or anything else from the previous meeting I should still address?
+## 6. Seasonal analysis (Figure F4)
+
+Not something you asked for. I dropped the constraint-combination figure
+because its conclusion depended on the order constraints were stacked, which
+is not defensible. The tornado makes the same point about sigma without that
+order-dependence.
+
+Figure F4 has two panels: seasonal LP savings and a regional breakdown by
+season. Savings are consistent across all four seasons. Finland dominates the
+regional breakdown in every season, more so in summer as its CI advantage
+over PJM widens. The model's performance is driven by one region's structural
+carbon advantage, and that advantage holds year-round.
+
+---
+
+## 7. Decomposition and cross-region analysis (Figures F6, F7)
+
+Not directly requested. It answers a question the headline saving cannot:
+does the 78 percent come from picking better regions or better times?
+
+Figure F6 decomposes the saving into routing-only, timing-only, and an
+interaction term. Routing accounts for nearly all of it. Timing alone is
+negative: locking all load to PJM and only optimising the hour performs worse
+than the uniform baseline, because PJM does not vary enough intra-day to
+compensate. Where you schedule matters far more than when.
+
+Figure F7 is a scatter plot of timing-only saving against CI variability, one
+point per region. High-variability regions like Finland and Belgium show
+meaningful timing gains; low-variability regions like PJM, NYISO, and
+Singapore show almost none. Time-shifting only helps in regions where CI
+actually moves. Five points, diagnostic only.
+
+---
+
+## 8. Where this leaves us
+
+Kappa, rho, and alpha each have a checked mechanism. Sigma's dominance is the
+central practical finding. The schedule exhibit compares the right two things.
+Sensitivity and heuristics are separate.
+
+Two limitations still flagged: the negative timing result is specific to PJM
+being the home region, and the CV regression has five data points and is
+illustrative.
+
+---
+
+Anything in how I checked kappa, rho, or alpha you want me to push further
+on? Anything from last time I haven't closed out?

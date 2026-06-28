@@ -7,7 +7,7 @@
   pages     = {3645--3650},
   year      = {2019},
   publisher = {ACL},
-  note      = {arXiv:1906.02629}
+  note      = {arXiv:1906.02243}
 }
 
 @article{radovanovic2023,
@@ -22,12 +22,13 @@
 }
 
 @inproceedings{liu2012,
-  author    = {Liu, Zhenhua and Lin, Minghong and Wierman, Adam and Low, Steven H. and Andrew, Lachlan L. H.},
+  author    = {Liu, Zhenhua and Chen, Yuan and Bash, Cullen and Wierman, Adam and Gmach, Daniel and Wang, Zhikui and Marwah, Manish and Hyser, Chris},
   title     = {Renewable and cooling aware workload management for sustainable data centers},
-  booktitle = {Proceedings of the ACM SIGMETRICS Joint International Conference on Measurement and Modeling of Computer Systems},
+  booktitle = {Proceedings of the 12th ACM SIGMETRICS/PERFORMANCE Joint International Conference on Measurement and Modeling of Computer Systems},
   pages     = {175--186},
   year      = {2012},
-  publisher = {ACM}
+  publisher = {ACM},
+  note      = {doi:10.1145/2254756.2254779}
 }
 
 @article{hanafy2025,
@@ -48,10 +49,11 @@
 }
 
 @article{colangelo2025,
-  author    = {Colangelo, Michael and Coskun, Ayse K. and others},
-  title     = {Turning {AI} data centers into grid-interactive assets},
+  author    = {Colangelo, Philip and Coskun, Ayse K. and Megrue, Jack and Roberts, Ciaran and Sengupta, Shayan and Sivaram, Varun and Tiao, Ethan and Vijaykar, Aroon and Williams, Chris and Wilson, Daniel C. and MacFarland, Zack and Dreiling, Daniel and Morey, Nathan and Ratnayake, Anuja and Vairamohan, Baskar},
+  title     = {Turning {AI} Data Centers into Grid-Interactive Assets: Results from a Field Demonstration in Phoenix, Arizona},
   journal   = {arXiv preprint arXiv:2507.00909},
-  year      = {2025}
+  year      = {2025},
+  note      = {arXiv:2507.00909}
 }
 
 @article{hao2024joint,
@@ -64,13 +66,17 @@
   note      = {doi:10.3389/fenrg.2024.1344837}
 }
 
-@inproceedings{wiesner2024limitations,
-  author    = {Wiesner, Philipp and Behnke, Ilja and Che, Dominik and Gontarska, Kordian and Thamsen, Lauritz},
-  title     = {On the Limitations of Carbon-Aware Temporal and Spatial Workload Shifting in the Cloud},
-  booktitle = {Proceedings of the Nineteenth European Conference on Computer Systems (EuroSys)},
-  year      = {2024},
+% CORRECTED: the EuroSys 2024 "Limitations" paper (DOI 10.1145/3627703.3650079,
+% arXiv:2306.06502) is by Sukprasert et al. (see sukprasert2024limitations).
+% This key now holds the real Wiesner et al. paper, a distinct Middleware 2021 work.
+@inproceedings{wiesner2021letswait,
+  author    = {Wiesner, Philipp and Behnke, Ilja and Scheinert, Dominik and Gontarska, Kordian and Thamsen, Lauritz},
+  title     = {Let's Wait Awhile: How Temporal Workload Shifting Can Reduce Carbon Emissions in the Cloud},
+  booktitle = {Proceedings of the 22nd International Middleware Conference (Middleware)},
+  pages     = {260--272},
+  year      = {2021},
   publisher = {ACM},
-  note      = {arXiv:2306.06502; doi:10.1145/3627703.3650079}
+  note      = {arXiv:2110.13234; doi:10.1145/3464298.3493399}
 }
 
 @article{riepin2024spatiotemporal,
@@ -78,9 +84,10 @@
   title     = {Spatio-temporal load shifting for truly clean computing},
   journal   = {Advances in Applied Energy},
   volume    = {17},
+  pages     = {100202},
   year      = {2025},
   publisher = {Elsevier},
-  note      = {arXiv:2405.00036; doi:10.1016/j.adapen.2024.100175}
+  note      = {arXiv:2405.00036; doi:10.1016/j.adapen.2024.100202}
 }
 
 % NOTE: li2025llm — real first author is Moore, H. et al. (not Li, Yankai).
@@ -92,7 +99,7 @@
   author    = {Attenni, Giulio and Moawad, Youssef and Bartolini, Novella and Thamsen, Lauritz},
   title     = {Spatio-Temporal Shifting to Reduce Carbon, Water, and Land-Use Footprints of Cloud Workloads},
   journal   = {arXiv preprint arXiv:2512.08725},
-  year      = {2024},
+  year      = {2025},
   note      = {arXiv:2512.08725}
 }
 
@@ -105,7 +112,7 @@
 }
 
 @inproceedings{li2025llm,
-  author    = {Moore, Hannah and Qi, Sai and Hogade, Ninad and Milojicic, Dejan and Bash, Cullen and Pasricha, Sudeep},
+  author    = {Moore, Hannah and Qi, Sirui and Hogade, Ninad and Milojicic, Dejan and Bash, Cullen and Pasricha, Sudeep},
   title     = {Sustainable Carbon-Aware and Water-Efficient {LLM} Scheduling in Geo-Distributed Cloud Datacenters},
   booktitle = {Proceedings of the Great Lakes Symposium on VLSI (GLSVLSI)},
   year      = {2025},
@@ -117,7 +124,7 @@
 % paper could not be verified. Do not cite until a real DOI/arXiv is confirmed.
 
 @article{asadov2025review,
-  author    = {Asadov, Artur and Coroam\u{a}, Vlad C.},
+  author    = {Asadov, Nasir and Coroam\u{a}, Vlad C. and Franzil, Matteo and Galantino, Stefano and Finkbeiner, Matthias},
   title     = {Carbon-Aware Spatio-Temporal Workload Shifting in Edge--Cloud Environments: A Review and Novel Algorithm},
   journal   = {Sustainability},
   volume    = {17},
@@ -238,7 +245,7 @@
 }
 
 @inproceedings{yan2025ensembleci,
-  author    = {Yan, Liang and Wang, Lei and Liu, Shaolei and Ding, Yu},
+  author    = {Yan, Leyi and Wang, Linda and Liu, Sihang and Ding, Yi},
   title     = {{EnsembleCI}: Ensemble Learning for Carbon Intensity Forecasting},
   booktitle = {Proceedings of the 16th ACM International Conference on Future and Sustainable Energy Systems (e-Energy)},
   year      = {2025},
@@ -247,7 +254,7 @@
 }
 
 @article{li2024uncertainty,
-  author    = {Li, Ang and Liu, Shaolei and Ding, Yu},
+  author    = {Li, Amy and Liu, Sihang and Ding, Yi},
   title     = {Uncertainty-Aware Decarbonization for Datacenters},
   journal   = {arXiv preprint arXiv:2407.02390},
   year      = {2024},
@@ -275,7 +282,7 @@
 }
 
 @article{hall2024probabilistic,
-  author    = {Hall, Sasha and Micheli, Francesco and Belgioioso, Giuseppe and Radovanovi{\'c}, Ana and D{\"o}rfler, Florian},
+  author    = {Hall, Sophie and Micheli, Francesco and Belgioioso, Giuseppe and Radovanovi{\'c}, Ana and D{\"o}rfler, Florian},
   title     = {Carbon-Aware Computing for Data Centers with Probabilistic Performance Guarantees},
   journal   = {arXiv preprint arXiv:2410.21510},
   year      = {2024},
@@ -283,7 +290,7 @@
 }
 
 @inproceedings{breukelman2024hierarchical,
-  author    = {Breukelman, Ewout and Hall, Sasha and Belgioioso, Giuseppe and D{\"o}rfler, Florian},
+  author    = {Breukelman, Enno and Hall, Sophie and Belgioioso, Giuseppe and D{\"o}rfler, Florian},
   title     = {Carbon-Aware Computing in a Network of Data Centers: A Hierarchical Game-Theoretic Approach},
   booktitle = {Proceedings of the 2024 European Control Conference (ECC)},
   year      = {2024},
@@ -333,7 +340,7 @@
 }
 
 @inproceedings{bian2024cafe,
-  author    = {Bian, Jiechen and Wang, Lei and Ren, Shaolei and Xu, Jie},
+  author    = {Bian, Jieming and Wang, Lei and Ren, Shaolei and Xu, Jie},
   title     = {{CAFE}: Carbon-Aware Federated Learning in Geographically Distributed Data Centers},
   booktitle = {Proceedings of the 15th ACM International Conference on Future and Sustainable Energy Systems (e-Energy)},
   year      = {2024},
@@ -342,12 +349,13 @@
 }
 
 @inproceedings{lechowicz2025pcaps,
-  author    = {Lechowicz, Adam and others},
+  author    = {Lechowicz, Adam and Shenoy, Rohan and Bashir, Noman and Hajiesmaili, Mohammad and Wierman, Adam and Delimitrou, Christina},
   title     = {Carbon- and Precedence-Aware Scheduling for Data Processing Clusters},
   booktitle = {Proceedings of the ACM SIGCOMM 2025 Conference},
+  pages     = {1241--1244},
   year      = {2025},
   publisher = {ACM},
-  note      = {arXiv:2502.09717; doi:10.1145/3718958.3750478 — verify full author list}
+  note      = {arXiv:2502.09717; doi:10.1145/3718958.3750478}
 }
 
 % -- Electricity Price + Carbon Joint --
@@ -375,10 +383,10 @@
 % -- Carbon Accounting Methodology --
 
 @article{cote2024locational,
-  author    = {Cote, Lily and Sun, Andrew},
+  author    = {Cote, Luc and Sun, Andy},
   title     = {Locational Marginal Emissions for Carbon-Aware Data Center Operations in Large-Scale Power Grids},
   journal   = {arXiv preprint arXiv:2512.18819},
-  year      = {2024},
+  year      = {2025},
   note      = {arXiv:2512.18819}
 }
 
@@ -439,7 +447,7 @@
 % -- Grid Decarbonization --
 
 @inproceedings{chien2023reducing,
-  author    = {Chien, Andrew A. and Lin, Liuzixuan and Nguyen, Hai and Rao, Varsha and Sharma, Tim and Wijayawardana, Rajini},
+  author    = {Chien, Andrew A. and Lin, Liuzixuan and Nguyen, Hai and Rao, Varsha and Sharma, Tristan and Wijayawardana, Rajini},
   title     = {Reducing the Carbon Impact of Generative {AI} Inference (Today and in 2035)},
   booktitle = {Proceedings of the 2nd Workshop on Sustainable Computer Systems (HotCarbon)},
   year      = {2023},
@@ -448,7 +456,7 @@
 }
 
 @article{wiesner2024vessim,
-  author    = {Wiesner, Philipp and Khalili, Ramin and Grinwald, Dominik and Agrawal, Pratik and Thamsen, Lauritz and Kao, Odej},
+  author    = {Wiesner, Philipp and Behnke, Ilja and Kilian, Paul and Steinke, Marvin and Kao, Odej},
   title     = {Vessim: A Testbed for Carbon-Aware Applications and Systems},
   journal   = {ACM SIGEnergy Energy Informatics Review},
   year      = {2025},
@@ -531,6 +539,100 @@
   booktitle = {Proceedings of the Nineteenth European Conference on Computer Systems (EuroSys)},
   year      = {2024},
   publisher = {ACM},
-  note      = {doi:10.1145/3627703.3650079}
+  note      = {arXiv:2306.06502; doi:10.1145/3627703.3650079}
 }
 
+% ── Additional verified references (foundational + high-recognition) ──────────
+% Author lists, venues, and DOIs verified against ACM DL, Science, JMLR,
+% Cell Press, IEEE, and arXiv (2026-06).
+
+@article{masanet2020recalibrating,
+  author    = {Masanet, Eric and Shehabi, Arman and Lei, Nuoa and Smith, Sarah and Koomey, Jonathan},
+  title     = {Recalibrating Global Data Center Energy-Use Estimates},
+  journal   = {Science},
+  volume    = {367},
+  number    = {6481},
+  pages     = {984--986},
+  year      = {2020},
+  publisher = {AAAS},
+  note      = {doi:10.1126/science.aba3758}
+}
+
+@article{devries2023growing,
+  author    = {de Vries, Alex},
+  title     = {The Growing Energy Footprint of Artificial Intelligence},
+  journal   = {Joule},
+  volume    = {7},
+  number    = {10},
+  pages     = {2191--2194},
+  year      = {2023},
+  publisher = {Cell Press},
+  note      = {doi:10.1016/j.joule.2023.09.004}
+}
+
+@inproceedings{dodge2022measuring,
+  author    = {Dodge, Jesse and Prewitt, Taylor and Tachet des Combes, Remi and Odmark, Erika and Schwartz, Roy and Strubell, Emma and Luccioni, Alexandra Sasha and Smith, Noah A. and DeCario, Nicole and Buchanan, Will},
+  title     = {Measuring the Carbon Intensity of {AI} in Cloud Instances},
+  booktitle = {Proceedings of the 2022 ACM Conference on Fairness, Accountability, and Transparency (FAccT)},
+  pages     = {1877--1894},
+  year      = {2022},
+  publisher = {ACM},
+  note      = {arXiv:2206.05229; doi:10.1145/3531146.3533234}
+}
+
+@inproceedings{gupta2021chasing,
+  author    = {Gupta, Udit and Kim, Young-geun and Lee, Sylvia and Tse, Jordan and Lee, Hsien-Hsin S. and Wei, Gu-Yeon and Brooks, David and Wu, Carole-Jean},
+  title     = {Chasing Carbon: The Elusive Environmental Footprint of Computing},
+  booktitle = {Proceedings of the IEEE International Symposium on High-Performance Computer Architecture (HPCA)},
+  pages     = {854--867},
+  year      = {2021},
+  publisher = {IEEE},
+  note      = {doi:10.1109/HPCA51647.2021.00076}
+}
+
+@article{henderson2020towards,
+  author    = {Henderson, Peter and Hu, Jieru and Romoff, Joshua and Brunskill, Emma and Jurafsky, Dan and Pineau, Joelle},
+  title     = {Towards the Systematic Reporting of the Energy and Carbon Footprints of Machine Learning},
+  journal   = {Journal of Machine Learning Research},
+  volume    = {21},
+  number    = {248},
+  pages     = {1--43},
+  year      = {2020},
+  note      = {arXiv:2002.05651}
+}
+
+@article{luccioni2023estimating,
+  author    = {Luccioni, Alexandra Sasha and Viguier, Sylvain and Ligozat, Anne-Laure},
+  title     = {Estimating the Carbon Footprint of {BLOOM}, a 176{B} Parameter Language Model},
+  journal   = {Journal of Machine Learning Research},
+  volume    = {24},
+  number    = {253},
+  pages     = {1--15},
+  year      = {2023},
+  note      = {arXiv:2211.02001}
+}
+
+
+@article{huangfu2018parallelizing,
+  author    = {Huangfu, Qi and Hall, J. A. J.},
+  title     = {Parallelizing the dual revised simplex method},
+  journal   = {Mathematical Programming Computation},
+  volume    = {10},
+  number    = {1},
+  pages     = {119--142},
+  year      = {2018},
+  publisher = {Springer},
+  note      = {doi:10.1007/s12532-017-0130-5}
+}
+
+@article{virtanen2020scipy,
+  author    = {Virtanen, Pauli and Gommers, Ralf and Oliphant, Travis E. and Haberland, Matt and Reddy, Tyler and Cournapeau, David and others},
+  title     = {{SciPy} 1.0: fundamental algorithms for scientific computing in {Python}},
+  journal   = {Nature Methods},
+  volume    = {17},
+  number    = {3},
+  pages     = {261--272},
+  year      = {2020},
+  publisher = {Nature Publishing Group},
+  note      = {doi:10.1038/s41592-019-0686-2}
+}

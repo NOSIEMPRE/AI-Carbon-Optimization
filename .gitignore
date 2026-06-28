@@ -16,3 +16,16 @@ Essays/*.pdf
 data/fetch_log.txt
 Presentation_IE_BissanGhaddar_capstone.pdf
 Research_Capstone_KickOff_May_2026.pdf
+
+# LaTeX build artifacts
+*.aux
+*.log
+*.out
+*.toc
+*.bbl
+*.blg
+*.nav
+*.snm
+*.fls
+*.fdb_latexmk
+*.synctex.gz

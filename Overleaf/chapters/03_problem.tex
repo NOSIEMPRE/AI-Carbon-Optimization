@@ -1,0 +1,86 @@
+\section{Data and Exploratory Analysis}
+\label{sec:problem}
+
+This section introduces the carbon data that drive the model, the five grid regions over which it operates, and the exploratory analysis that motivates the modelling choices formalized in Section~\ref{sec:formulation}. It first describes the data sources and the rationale for the regional selection, and then characterizes the spatial and temporal structure of carbon intensity to establish where carbon savings can be found.
+
+\FloatBarrier
+\subsection{Data and Target Regions}
+\label{sec:prob-data}
+
+The data consist of hourly grid measurements from ElectricityMaps over the full 2024--2025 period, giving $17{,}544$ hours per region across five regions. The regions are chosen so that the conclusions do not depend on any single grid, spanning clean to high-carbon supply and variable to flat carbon intensity. PJM (US-MIDA-PJM) is a large coal-and-gas grid with high carbon intensity and large intra-day swings; NYISO (US-NY-NYIS) is cleaner and more moderate, drawing on hydro and nuclear; Finland (FI) is among the cleanest, combining hydro, nuclear, and wind; Belgium (BE) sits in the middle, with substantial nuclear and a diurnal solar signal; and Singapore (SG) serves as a control region, since its almost entirely gas-fired supply gives it high but flat carbon intensity, which tests whether carbon-aware scheduling helps where the grid does not vary.
+
+Two hourly signals drive the model, both available at the resolution at which the scheduling decision is made. The first is carbon intensity (CI), the average grams of CO\textsubscript{2}-equivalent emitted per kilowatt-hour, retrieved from the \texttt{carbonIntensity} field. The second is the carbon-free energy fraction (CFE), the share of consumed electricity supplied by carbon-free sources, computed from the \texttt{powerBreakdown} field as the combined contribution of wind, solar, hydro, and nuclear generation.
+
+The two signals are retained separately because they measure different things. Carbon intensity measures how much carbon a kilowatt-hour emits on average, whereas CFE measures how structurally clean the supply is. Two hours can share the same CI for different reasons, one because wind is displacing fossil generation and another because demand is low while fossil plants still run, and only CFE distinguishes them. Using both lets the model favour electricity that is clean because of renewable supply, consistent with 24/7 carbon-free accounting \citep{riepin2024cfe247costs}. The regions also differ in carbon-free composition, with nuclear material in Finland and Belgium, where a CFE-aware objective differs most from one based on CI alone. The thesis uses average CI rather than locational marginal emissions, which attribute carbon to the marginal generator and can diverge from average CI in large grids; this choice is revisited as a limitation in Section~\ref{sec:conclusion} \citep{cote2024locational, lindberg2022geographic}.
+
+\FloatBarrier
+\subsection{Exploratory Analysis}
+\label{sec:prob-eda}
+
+Before the model is specified, several features of the data establish where carbon savings can be found and justify the modelling choices that follow. The first concerns the spatial structure of carbon intensity, which matters in two distinct ways. The more visible is the spread in levels across regions. As Figure~\ref{fig:eda-box} shows, median CI ranges from roughly 80~gCO\textsubscript{2}eq/kWh in Finland to more than 530 in Singapore, a difference of close to a factor of seven. A spread of this magnitude means that routing flexible load from a dirty region to a clean one can cut its carbon by more than any rescheduling within a single region could, a first indication that the spatial dimension is likely to dominate. Table~\ref{tab:regions} reports the per-region descriptive statistics referred to throughout this section.
+
+\begin{figure}[tbp]
+\centering
+\includegraphics[width=0.92\linewidth]{eda_ci_boxplot}
+\caption{Distribution of hourly carbon intensity by region over 2024--2025. Median CI differs by almost a factor of seven between the cleanest region (Finland) and the highest-carbon one (Singapore), establishing a large headroom for spatial routing. Singapore combines high CI with a narrow spread, foreshadowing its role as a control region.}
+\label{fig:eda-box}
+\end{figure}
+
+\begin{table}[tbp]
+\centering\small
+\setlength{\tabcolsep}{7pt}
+\renewcommand{\arraystretch}{1.15}
+\begin{tabular}{@{}ll
+    S[table-format=3.0]
+    S[table-format=2.0]
+    c
+    S[table-format=2.1]
+    S[table-format=1.3]@{}}
+\toprule
+\textbf{Region} & \textbf{Grid zone} & {\textbf{CI mean}} & {\textbf{CI sd}} & \textbf{CI range} & {\textbf{CFE (\%)}} & {$\boldsymbol{R^2}$} \\
+\midrule
+PJM       & US-MIDA-PJM & 472 & 52 & 313--627 & 42.0 & 0.748 \\
+NYISO     & US-NY-NYIS  & 354 & 44 & 215--499 & 51.1 & 0.768 \\
+Finland   & FI          &  83 & 35 &  34--285 & 94.0 & 0.968 \\
+Belgium   & BE          & 191 & 76 &  69--433 & 76.1 & 0.958 \\
+Singapore & SG          & 533 & 60 & 391--584 &  2.7 & 0.059 \\
+\bottomrule
+\end{tabular}
+\caption{Descriptive statistics of the hourly data per region over 2024--2025 ($17{,}544$ hours each). CI columns (mean, standard deviation, and min--max range) are in gCO\textsubscript{2}eq/kWh; CFE is the mean carbon-free energy fraction; and $R^2$ is the share of CI variance explained by CFE. The clean European grids (Finland, Belgium) combine low CI with high spread, contrasting with the high-carbon, low-spread control (Singapore).}
+\label{tab:regions}
+\end{table}
+
+A difference in levels is necessary but not sufficient for spatial routing to help; what matters equally is whether the regions move together. Figure~\ref{fig:eda-corr} reports the Pearson correlation of hourly CI between every pair of regions. With the exception of the two US grids, which share a generation mix and correlate at 0.62, the off-diagonal correlations are close to zero or negative, including a correlation of $-0.34$ between NYISO and Finland. This spatial decorrelation is the structural precondition for geographic load shifting, because regions that rarely peak together ensure that when one grid is carbon-intensive another is usually clean and able to absorb the load. Without such decorrelation, routing would add little to what temporal shifting already provides \citep{lindberg2022geographic, riepin2024spatiotemporal}.
+
+\begin{figure}[tbp]
+\centering
+\includegraphics[width=0.68\linewidth]{eda_ci_correlation}
+\caption{Pearson correlation of hourly carbon intensity between regions over 2024--2025. Only the two US grids are strongly correlated; every other pair is near zero or negative. This decorrelation is what makes spatial routing effective, since a clean region is almost always available when another is dirty.}
+\label{fig:eda-corr}
+\end{figure}
+
+The second feature is the temporal structure of carbon intensity within the day, shown in Figure~\ref{fig:eda-diurnal}. The size of the intra-day swing varies sharply across regions. Belgium has the largest diurnal range, driven by a midday solar trough, whereas Finland is almost flat on an hour-of-day basis. This low diurnal range is misleading, however, because Finland has the highest overall variability in the dataset once day-to-day fluctuations are included, as its monthly profile in Figure~\ref{fig:eda-monthly} shows. The distinction matters for modelling, since Finland's variability comes from multi-day wind patterns rather than a daily cycle, so the value of temporal shifting depends on the planning window and the source of variation, not on the time of day alone. This region-dependence of temporal savings is consistent with prior empirical findings \citep{wiesner2021letswait, sukprasert2024limitations}.
+
+Variation within the day is only part of the temporal picture. Figure~\ref{fig:eda-monthly} shows mean CI by calendar month, which exposes a seasonal structure that the diurnal view hides. Finland is cleanest in late spring and summer, when hydro and wind peak and its mean CI falls below 60~gCO\textsubscript{2}eq/kWh, while Belgium softens through the warmer months as solar contributes and PJM and Singapore stay high year-round. In the clean European grids these seasonal swings are larger than the diurnal ones, which is why a full two-year horizon, rather than a single representative week, is needed to capture the temporal opportunity, and why the results in Section~\ref{sec:results} are reported season by season.
+
+\begin{figure}[tbp]
+\centering
+\includegraphics[width=\linewidth]{eda_monthly}
+\caption{Mean carbon intensity by calendar month per region over 2024--2025. Finland and Belgium show pronounced seasonal troughs in the warmer months as renewable generation peaks, whereas PJM and Singapore remain high throughout the year. These seasonal swings exceed the diurnal ones in the clean grids, motivating the two-year evaluation horizon.}
+\label{fig:eda-monthly}
+\end{figure}
+
+The third feature concerns which signal should drive the model. Figure~\ref{fig:eda-reg} regresses carbon intensity on the carbon-free energy fraction in each region. In the four grids with meaningful renewable or nuclear supply, CFE explains most of the variation in CI, with the coefficient of determination reaching 0.97 in Finland and exceeding 0.94 in Belgium. The exception is Singapore, where CFE is near zero throughout and explains almost none of the variation, as expected for an almost entirely gas-fired grid. The strength of this relationship justifies entering CFE into the objective as a structural-cleanliness discount, and the steepness of the fitted slopes implies a large discount weight, which informs the choice of the corresponding parameter in Section~\ref{sec:formulation}.
+
+\begin{figure}[tbp]
+\centering
+\includegraphics[width=\linewidth]{eda_ci_cfe_regression}
+\caption{Carbon intensity against the carbon-free energy fraction, with an ordinary-least-squares fit per region. The carbon-free energy fraction explains most of the variation in carbon intensity in every region except gas-dominated Singapore, supporting its use as a cleanliness signal alongside carbon intensity.}
+\label{fig:eda-reg}
+\end{figure}
+
+The regression shows that CFE tracks CI, but not why CFE is preferable to a simpler renewables-only signal. Figure~\ref{fig:eda-comp} resolves this by decomposing each region's carbon-free supply into renewable and nuclear shares. The two clean European grids reach high CFE by different routes, Finland through a large renewable share supplemented by nuclear and Belgium through a near-even split, whereas PJM's moderate 42\,\% CFE is almost entirely nuclear, with renewables contributing under 8\,\%. Because nuclear is carbon-free yet invisible to a renewables-only measure, a region like PJM would appear far dirtier than it is under a renewable-fraction objective. This is the empirical reason the model uses the carbon-free energy fraction rather than the renewable fraction alone.
+
+Taken together, the descriptive statistics in Table~\ref{tab:regions} and the figures preview the central empirical finding. The regions differ markedly in carbon level, which creates the headroom that spatial routing exploits, while only Finland and Belgium combine that level difference with substantial within-region variability, so the temporal lever is expected to matter chiefly in those two grids. Singapore, high in carbon yet flat and with no carbon-free supply, is expected to benefit from neither lever, which is what makes it a useful control.
+
+\FloatBarrier

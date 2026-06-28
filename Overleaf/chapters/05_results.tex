@@ -1,0 +1,135 @@
+\section{Computational Results}
+\label{sec:results}
+
+This section reports the empirical evaluation of the model. It first validates the formulation, through a behavioural perturbation test and an integration check on real data, and then presents the results of the two-year backtest, covering a representative schedule, the sensitivity analysis, seasonal behaviour, the comparison of solution methods, and a decomposition of where the carbon savings come from. Unless stated otherwise, results are computed over the full 2024--2025 horizon, which the rolling-window backtest divides into 731 scheduling windows.
+
+\FloatBarrier
+\subsection{Model Validation}
+\label{sec:res-validation}
+
+Validation proceeds in two parts that answer different questions. The first asks whether the model reacts correctly when an input changes, and the second asks whether the full formulation holds together on real data.
+
+The perturbation test addresses the first question on a small constructed instance of three real regions (PJM as home, Finland, and Belgium) over a six-hour window, with all seven constraints active so that the correct response to each change is known in advance. One input is changed at a time and the schedule is checked against its predicted reaction. Table~\ref{tab:pert} reports the outcome of each scenario and Figure~\ref{fig:f-pert} shows the corresponding hourly schedules. Every metric moves in the predicted direction, in that load reroutes as soon as a region ceases to be the cleanest option, additional demand flows to the preferred region first, a shorter deferral window forces load out of the clean hours and raises carbon, and a tighter hourly cap reshapes the schedule before it reduces throughput. All thirteen individual checks across the five scenarios pass.
+
+\begin{table}[tbp]
+\centering\small
+\renewcommand{\arraystretch}{1.25}
+\begin{tabularx}{\linewidth}{Xlc}
+\toprule
+\textbf{Perturbation} & \textbf{Observed response} & \textbf{Result} \\
+\midrule
+CI shock: Finland's CI raised from 52--55 to 700, above PJM & Finland $6.0 \to 0.0$\,kWh; Belgium $0.0 \to 6.0$ & PASS \\
+Demand raised from 10 to 18\,kWh & All served (C1 exact); Finland rises to 10.8 & PASS \\
+Deferral window $\delta$ shortened from 6\,h to 1\,h & Carbon $2{,}574 \to 2{,}808$\,gCO\textsubscript{2}eq & PASS \\
+Finland capacity squeezed mildly ($C_{\max}\;10 \to 3$\,kWh/h) & Finland total unchanged at 6.0; spread out & PASS \\
+Finland capacity squeezed severely ($C_{\max}\;10 \to 0.5$) & Finland total $6.0 \to 3.0$; shortfall rerouted & PASS \\
+\bottomrule
+\end{tabularx}
+\caption{Perturbation test on the three-region, six-hour instance with all seven constraints active. Thirteen individual checks across these five scenarios all pass.}
+\label{tab:pert}
+\end{table}
+
+The integration check addresses the second question by running the complete model once on the first 168 hours of real data, again with all seven constraints active. Table~\ref{tab:integ} reports, for each constraint, the observed value against its limit and whether it binds. Every constraint is satisfied within numerical tolerance, and the pattern of binding is itself informative. Demand completion, the geographic cap, the fairness auxiliary, and the ramp limit actively shape the solution, whereas the latency and dynamic-range limits remain slack because the optimal schedule already respects them with room to spare. Relative to serving all load at the home region, the model reduces carbon by 39.8\,\% on this instance. Together the two checks establish that the formulation is both logically correct and empirically sound before any aggregate result is read from it.
+
+\begin{table}[tbp]
+\centering\small
+\renewcommand{\arraystretch}{1.25}
+\begin{tabularx}{\linewidth}{llXcc}
+\toprule
+& \textbf{Constraint} & \textbf{Observed vs.\ limit} & \textbf{Binding} & \textbf{Status} \\
+\midrule
+C1 & Demand        & $7.000 = 7.0$\,kWh required & Yes & PASS \\
+C2 & Latency       & Latest placement at hour 19 of 23 & No & PASS \\
+C3 & Capacity      & $\min x = 0$;\ $\max x = 0.30$ vs.\ $C_{\max}=1.0$ & Partial & PASS \\
+C4 & Transfer cap  & Max off-home fraction $= 0.50 = \sigma$ & Yes & PASS \\
+C5 & Fairness      & $M = 1{,}683 =$ PJM regional carbon & Yes & PASS \\
+C6 & Ramp          & Max ramp $= 0.20 = \kappa\,C_{\max}$ & Yes & PASS \\
+C7 & Dynamic range & Max swing $= 0.30 < \rho\,C_{\max} = 0.40$ & No & PASS \\
+\bottomrule
+\end{tabularx}
+\caption{Integration check on 168 hours of real data ($\sigma=0.5$, $\kappa=0.2$, $\rho=0.4$, $\eta=0.3$, $\delta=24$\,h). All seven constraints hold within tolerance; four bind and two are slack. LP carbon saving versus a home-only baseline is 39.8\,\%.}
+\label{tab:integ}
+\end{table}
+
+\FloatBarrier
+\subsection{An Illustrative Schedule}
+\label{sec:res-schedule}
+
+Before turning to aggregate savings, Figure~\ref{fig:f-sched} makes the model's behaviour concrete for a single representative window. The comparison is deliberately between no shifting and LP shifting, rather than between two optimized schedules, because only the no-shift case represents what the system does without the model. The no-shift baseline serves the entire batch immediately at the home region, while the LP routes it to Finland and spreads it over several hours to respect the ramp limit. In this window the no-shift schedule emits 533~gCO\textsubscript{2} and the LP schedule emits 53, a reduction of 90.0\,\%, and almost all of that gap comes from routing to a cleaner region rather than from retiming within the home grid. This single window is illustrative only; the quantitative claims rest on the full backtest that follows.
+
+\FloatBarrier
+\subsection{Sensitivity Analysis}
+\label{sec:res-sensitivity}
+
+To identify which constraints most limit achievable savings, each of the six tunable parameters is varied across its tested range while the others are held at their loosest settings, following the one-at-a-time convention for models with few parameters \citep{saltelli2008}. Figure~\ref{fig:f-tornado} presents the result as a tornado diagram \citep{eschenbach1992}, with each bar showing the percentage change in LP carbon as the parameter is tightened and the bars sorted by impact.
+
+The dominant finding is that the geographic cap $\sigma$ governs achievable savings far more than any other parameter. Tightening $\sigma$ from 1.0 to 0.3 raises LP carbon by 373.7\,\% relative to the unconstrained baseline, an order of magnitude more than the next largest effect. By comparison the fairness weight $\eta$ accounts for $20.2\,\%$, the deferral window $\delta$ for $8.2\,\%$, and the dynamic-range, ramp, and CFE-discount parameters $\rho$, $\kappa$, and $\alpha$ for $2.9\,\%$, $2.1\,\%$, and $0.2\,\%$ respectively. The practical implication is that how much load may move across regions, rather than how it is smoothed in time or how fairness is weighted, is what determines the carbon a deployment can save.
+
+\begin{figure}[tbp]
+\centering
+\includegraphics[width=0.9\linewidth]{sensitivity_tornado}
+\caption{One-at-a-time sensitivity of LP carbon to each parameter, expressed as the percentage change from the unconstrained baseline as the parameter is tightened. The geographic cap $\sigma$ dominates every other parameter by an order of magnitude.}
+\label{fig:f-tornado}
+\end{figure}
+
+\FloatBarrier
+\subsection{Seasonal Analysis}
+\label{sec:res-seasonal}
+
+The two-year horizon allows the backtest to be split by season, which tests whether the headline saving depends on the time of year. Figure~\ref{fig:f-seasonal} reports the LP saving and the regional share of allocated load for each season. The saving is high and stable throughout, ranging from $73.4\,\%$ in spring to $84.1\,\%$ in summer, with winter and autumn at $74.8\,\%$ and $81.2\,\%$. Finland absorbs the large majority of scheduled load in every season, and its share rises further in summer as its carbon advantage over the fossil grids widens. The model's performance therefore rests on one region's structural carbon advantage, and that advantage holds year-round rather than appearing only in a favourable season.
+
+\begin{figure}[tbp]
+\centering
+\includegraphics[width=\linewidth]{seasonal_breakdown}
+\caption{Seasonal carbon saving by method (left) and the regional share of LP-allocated load by season (right). Savings are consistent across seasons, and Finland dominates the allocation throughout, more so in summer as its carbon advantage widens.}
+\label{fig:f-seasonal}
+\end{figure}
+
+\FloatBarrier
+\subsection{Comparison with Practical Schedulers}
+\label{sec:res-methods}
+
+Deployed carbon-aware schedulers are heuristic: they apply fast placement rules without solving for a constrained optimum \citep{radovanovic2023, acun2023carbonexplorer}. The relevant question is therefore how the exact LP compares with such rules in both carbon and feasibility. Four schedulers are evaluated under the full operational constraints ($\sigma = 0.6$, $\kappa = 0.5$, $\rho = 0.7$), reporting carbon savings against a carbon-agnostic baseline \citep{acun2023carbonexplorer}. Two are exact and serve as references: a perfect-foresight \emph{oracle} that solves the LP over a week-long look-ahead, and the rolling-horizon LP of this thesis. Two are heuristics: a carbon-aware \emph{greedy} rule that fills the cheapest region-hour slots first, and a carbon-agnostic \emph{first-come-first-served} (FCFS) policy. Greedy is used as the heuristic benchmark because, among constructive rules, filling by effective carbon cost is the most direct heuristic for this objective, so its performance bounds that of weaker threshold or routing rules. Table~\ref{tab:schedulers} and Figure~\ref{fig:f-heur} summarize the comparison.
+
+The oracle saves \SI{36.8}{\percent} and serves as a ceiling no deployable method can reach, since it assumes future carbon intensity that is unknown at scheduling time. The LP saves \SI{31.4}{\percent}, within a few points of that ceiling, and is the only scheduler that attains this saving while provably respecting every constraint. Greedy saves \SI{31.5}{\percent}, within \num{0.1} percentage points of the LP, but it does so by relaxing the problem: it enforces the geographic cap yet ignores the ramp and range limits, so it optimizes over a larger feasible set than the LP. The near-parity is therefore expected, and it is the carbon price of feasibility rather than evidence that the heuristic is as good. Checking greedy's hourly schedule against the constraints confirms this: it violates the ramp limit in all \num{731} backtest windows, with an hour-to-hour swing of \num{0.60} against a cap of \num{0.50} (\SI{20}{\percent} over), while it happens to satisfy the range limit. FCFS saves \SI{-51.5}{\percent}; it emits about half as much carbon again as the baseline, because it concentrates load in the home region's consistently high-carbon hours. The ranking is stable across all four seasons.
+
+\begin{table}[tbp]
+\centering\small
+\setlength{\tabcolsep}{8pt}
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{@{}l S[table-format=-2.1] c l@{}}
+\toprule
+\textbf{Scheduler} & {\textbf{Saving (\%)}} & \textbf{Constraints satisfied} & \textbf{Foresight} \\
+\midrule
+Oracle (LP, perfect foresight) & 36.8 & Yes & week ahead \\
+LP (this work)                 & 31.4 & Yes & \SI{24}{\hour} rolling \\
+Greedy (carbon-aware)          & 31.5 & No (ramp)  & \SI{24}{\hour} rolling \\
+FCFS (carbon-agnostic)         & -51.5 & No        & none \\
+\bottomrule
+\end{tabular}
+\caption{Carbon saving relative to the no-optimization baseline under the full operational constraints ($\sigma=0.6$, $\kappa=0.5$, $\rho=0.7$). The four schedulers are: \emph{Oracle}, the LP solved with a week of perfect foresight, an idealized upper bound; \emph{LP}, the rolling-horizon model of this thesis; \emph{Greedy}, a carbon-aware heuristic that fills the cheapest region-hour slots first; and \emph{FCFS}, the carbon-agnostic first-come-first-served default. The LP attains near-ceiling savings while satisfying every constraint; greedy matches its carbon only by violating the ramp limit (in all \num{731} windows); FCFS is worse than no optimization.}
+\label{tab:schedulers}
+\end{table}
+
+\begin{figure}[tbp]
+\centering
+\includegraphics[width=\linewidth]{heuristic_comparison}
+\caption{Carbon saving relative to the no-optimization baseline for four schedulers under full operational constraints, overall (left) and by season (right). The oracle is a perfect-foresight ceiling; the LP attains near-ceiling savings while provably respecting every constraint; greedy matches its carbon only by violating the ramp limit; first-come-first-served is worse than doing nothing.}
+\label{fig:f-heur}
+\end{figure}
+
+\FloatBarrier
+\subsection{Spatio-Temporal Decomposition}
+\label{sec:res-decomp}
+
+A final question is whether the headline saving comes from routing load to cleaner regions or from retiming it to cleaner hours. To separate the two, the backtest is re-run under restricted variants of the model, one that may route but not retime, one that may retime but not route, and the full model that may do both. Figure~\ref{fig:f-decomp} reports the decomposition. Routing alone accounts for almost all of the saving, at $75.6\,\%$ against the full model's $78.4\,\%$, whereas retiming alone is negative, at $-35.6\,\%$, because locking all load to the high-carbon home region and optimizing only the hour performs worse than the uniform baseline. The interaction term of $38.4\,\%$ shows that routing and retiming are complementary, since choosing the hour is far more valuable once load already sits in a region whose carbon intensity actually varies. In short, where load runs matters far more than when, and timing helps only in concert with routing.
+
+\begin{figure}[tbp]
+\centering
+\includegraphics[width=\linewidth]{decomposition}
+\caption{Additive decomposition of the LP saving into routing-only, retiming-only, and interaction components, by season. Routing accounts for almost all of the saving, retiming alone is carbon-increasing, and the two are strongly complementary.}
+\label{fig:f-decomp}
+\end{figure}
+
+This pattern is explained by the regional structure of the data. Figure~\ref{fig:f-cv} relates each region's within-region timing saving to the variability of its carbon intensity. Timing yields a meaningful saving only where carbon intensity actually moves, reaching $27.7\,\%$ in Belgium and $13.3\,\%$ in Finland, the two high-variability grids, while the low-variability grids, PJM, NYISO, and Singapore, gain only six to eight percent from timing regardless of how cleanly it is scheduled. This is consistent with the broader finding that the value of temporal shifting is strongly region-dependent \citep{sukprasert2024limitations, wiesner2021letswait}, and it explains why, with PJM as the home region, retiming alone is unrewarding while routing to a variable clean grid such as Finland or Belgium is not.
+

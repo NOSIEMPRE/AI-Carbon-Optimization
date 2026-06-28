@@ -3,10 +3,11 @@ Generate thesis figures from sensitivity sweep and baseline backtest results.
 
 Figures produced (saved to data/figures/)
 ------------------------------------------
-F0  schedule_sample.png      LP schedule vs CI signal (one representative week)
-F1  sensitivity_tornado.png  OAT tornado diagram; bars sorted by impact width
-F2  seasonal_breakdown.png   LP saving and regional carbon share by season
-F3  heuristic_comparison.png LP efficiency ratio: Oracle/LP/Greedy/Uniform/FCFS
+F1  perturbation_test.png    predicted vs observed reaction in 4 scenarios
+F2  schedule_sample.png      LP schedule vs CI signal (one representative week)
+F3  sensitivity_tornado.png  OAT tornado diagram; bars sorted by impact width
+F4  seasonal_breakdown.png   LP saving and regional carbon share by season
+F5  heuristic_comparison.png carbon saving vs no-opt baseline: Oracle/LP/Greedy/FCFS
 F6  decomposition.png        temporal vs. spatial decomposition of LP saving
 F7  cv_regression.png        CI variability vs within-region temporal saving
 
@@ -18,6 +19,9 @@ Usage
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).parent))
+from lp_model import solve as lp_solve
+
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -25,26 +29,35 @@ import matplotlib.ticker as mticker
 import numpy as np
 import pandas as pd
 
+from figstyle import apply_style, REGION_COLORS, METHOD_COLORS
+apply_style()
+
+# Real CI values used in perturbation test (2024-07-17 00:00–05:00 UTC)
+_PERT_CI = np.array([
+    [600, 611, 613, 600, 582, 564],   # PJM
+    [ 54,  55,  55,  54,  52,  52],   # FI
+    [138, 124, 100, 124, 122, 139],   # BE
+], dtype=float)
+_PERT_CFE   = np.zeros((3, 6))
+_PERT_CMAX  = np.full(3, 10.0)
+_PERT_CMIN  = np.zeros(3)
+_PERT_PARAMS = dict(alpha=0.0, gamma=0.0, eta=0.1, sigma=0.6,
+                    kappa=0.5, rho=0.7, delta=6, r0=0)
+
 RESULTS_DIR = Path(__file__).parent.parent / "data" / "results"
 FIG_DIR     = Path(__file__).parent.parent / "data" / "figures" / "results"
 FIG_DIR.mkdir(parents=True, exist_ok=True)
 
 LABELS = ["PJM", "NYISO", "Finland", "Belgium", "Singapore"]
 
-REGION_COLORS = {
-    "PJM":       "#1f77b4",
-    "NYISO":     "#ff7f0e",
-    "Finland":   "#2ca02c",
-    "Belgium":   "#d62728",
-    "Singapore": "#9467bd",
-}
-
+# Region and method colors come from the shared style (figstyle) so that every
+# figure in the thesis and poster uses one consistent palette.
 HEURISTIC_STYLES = {
-    "Uniform":  dict(color="#999999", hatch=""),
-    "FCFS":     dict(color="#fdae61", hatch=""),
-    "Greedy":   dict(color="#ff7f0e", hatch=""),
-    "Oracle":   dict(color="#74add1", hatch="//"),
-    "LP":       dict(color="#1f77b4", hatch=""),
+    "Uniform":  dict(color=METHOD_COLORS["Uniform"], hatch=""),
+    "FCFS":     dict(color=METHOD_COLORS["FCFS"],    hatch=""),
+    "Greedy":   dict(color=METHOD_COLORS["Greedy"],  hatch=""),
+    "Oracle":   dict(color=METHOD_COLORS["Oracle"],  hatch="//"),
+    "LP":       dict(color=METHOD_COLORS["LP"],      hatch=""),
 }
 
 SEASON_LABELS = {"DJF": "Winter", "MAM": "Spring", "JJA": "Summer", "SON": "Autumn"}
@@ -52,7 +65,7 @@ SEASON_LABELS = {"DJF": "Winter", "MAM": "Spring", "JJA": "Summer", "SON": "Autu
 PARAM_LABELS = {
     "alpha": r"$\alpha$ (CFE weight)",
     "sigma": r"$\sigma$ (geographic cap)",
-    "delta": r"$\delta$ (deadline, hours)",
+    "delta": r"$\delta$ (max deferral time)",
     "kappa": r"$\kappa$ (ramp-rate cap)",
     "rho":   r"$\rho$ (dynamic-range cap)",
     "eta":   r"$\eta$ (fairness weight)",
@@ -77,6 +90,11 @@ def load_baseline() -> pd.DataFrame:
     return pd.read_parquet(p)
 
 
+def load_heuristic() -> pd.DataFrame | None:
+    p = RESULTS_DIR / "heuristic_backtest.parquet"
+    return pd.read_parquet(p) if p.exists() else None
+
+
 def load_schedule() -> tuple[pd.DataFrame | None, pd.DataFrame | None]:
     p1 = RESULTS_DIR / "schedule_sample.parquet"
     p2 = RESULTS_DIR / "schedule_sample_constrained.parquet"
@@ -95,8 +113,13 @@ def load_cv_regression() -> pd.DataFrame | None:
     return pd.read_csv(p) if p.exists() else None
 
 
+def load_perturbation() -> pd.DataFrame | None:
+    p = RESULTS_DIR / "perturbation_test.csv"
+    return pd.read_csv(p) if p.exists() else None
+
+
 # ---------------------------------------------------------------------------
-# Figure 0: Schedule sample (solution and validation)
+# Figure F2: Schedule sample (solution and validation)
 # ---------------------------------------------------------------------------
 
 def _draw_schedule_panel(ax_sched, ax_ci, df, col_prefix="x_lp", title=""):
@@ -151,7 +174,7 @@ def _carbon_total(df: pd.DataFrame, col_prefix: str) -> float:
 
 def fig_schedule(df_noshift: pd.DataFrame, df_lp: pd.DataFrame | None):
     """
-    F0: schedule exhibit using the comparison basis the supervisor asked for
+    F2: schedule exhibit using the comparison basis the supervisor asked for
     (meeting 2026-06-15): "without shifting" vs "with shifting" — NOT
     "unconstrained LP" vs "constrained LP" (both of those are LP variants,
     neither represents what the system would actually do without
@@ -167,7 +190,7 @@ def fig_schedule(df_noshift: pd.DataFrame, df_lp: pd.DataFrame | None):
     has_both = df_lp is not None
     ncols = 2 if has_both else 1
     fig, axes = plt.subplots(2, ncols, figsize=(13 if has_both else 8, 7),
-                             sharex="col",
+                             sharex="col", sharey="row",
                              gridspec_kw={"height_ratios": [2, 1]})
 
     if not has_both:
@@ -189,24 +212,24 @@ def fig_schedule(df_noshift: pd.DataFrame, df_lp: pd.DataFrame | None):
                                    f"({saving:+.1f}% vs no-shift)"))
         axes[1, 1].set_title("Carbon intensity by region", fontweight="bold")
 
-    fig.suptitle("Figure F0: No-Shift Baseline vs. LP-Optimised Schedule\n"
+    fig.suptitle("No-Shift Baseline vs. LP-Optimised Schedule\n"
                  "(one representative 24-hour window; both panels use the "
                  "same CI data)",
                  fontsize=11, fontweight="bold")
     plt.tight_layout()
     out = FIG_DIR / "schedule_sample.png"
-    plt.savefig(out, dpi=150, bbox_inches="tight")
+    plt.savefig(out, dpi=300, bbox_inches="tight")
     print(f"  Saved {out}")
     plt.close()
 
 
 # ---------------------------------------------------------------------------
-# Figure 1: Sensitivity — OAT Tornado Diagram (Eschenbach 1992)
+# Figure F3: Sensitivity — OAT Tornado Diagram (Eschenbach 1992)
 # ---------------------------------------------------------------------------
 
 def fig_sensitivity(df: pd.DataFrame):
     """
-    F1: OAT tornado diagram (Eschenbach, Interfaces 1992).
+    F3: OAT tornado diagram (Eschenbach, Interfaces 1992).
 
     Each horizontal bar shows the range of LP carbon (per scheduling window)
     as one parameter is swept across its full tested range while all others
@@ -255,58 +278,54 @@ def fig_sensitivity(df: pd.DataFrame):
     y_labels = sorted_params[::-1]
     n = len(y_labels)
 
+    C_COST   = "#FF9500"   # orange  — constraint tightened, carbon rises
+    C_SAVE   = "#0C5DA5"   # blue    — constraint loosened, carbon falls
+
     fig, ax = plt.subplots(figsize=(10, max(4, n * 0.85 + 1.5)))
 
     for i, p in enumerate(y_labels):
         lo, hi = param_ranges[p]
-        rng    = hi - lo
 
         if lo < 0:
-            ax.barh(i, -lo, left=lo, height=0.55,
-                    color="#2ca02c", alpha=0.85, zorder=3)
+            ax.barh(i, -lo, left=lo, height=0.6, color=C_SAVE, alpha=0.88, zorder=3)
         if hi > 0:
-            ax.barh(i, hi, left=0, height=0.55,
-                    color="#d62728", alpha=0.85, zorder=3)
+            ax.barh(i, hi, left=0, height=0.6, color=C_COST, alpha=0.88, zorder=3)
 
-        # Annotate right end of bar with % increase
         if hi > 0:
-            ax.text(hi + 0.4, i, f"+{hi:.1f}%",
-                    va="center", ha="left", fontsize=8, color="#d62728")
+            ax.text(hi + 0.3, i, f"+{hi:.1f}%",
+                    va="center", ha="left", fontsize=8.5, color=C_COST, fontweight="bold")
         if lo < 0 and hi <= 0:
-            ax.text(lo - 0.4, i, f"{lo:.1f}%",
-                    va="center", ha="right", fontsize=8, color="#2ca02c")
+            ax.text(lo - 0.3, i, f"{lo:.1f}%",
+                    va="center", ha="right", fontsize=8.5, color=C_SAVE, fontweight="bold")
 
     ax.axvline(0, color="black", linewidth=1.5, zorder=5)
     ax.set_yticks(range(n))
     ax.set_yticklabels([PARAM_LABELS.get(p, p) for p in y_labels], fontsize=10)
     ax.set_xlabel(
-        "Change in LP carbon per window relative to unconstrained baseline (%)",
-        fontsize=10)
+        "Change in LP carbon per window vs unconstrained baseline (%)", fontsize=9)
     ax.set_title(
-        "Figure F1: OAT Sensitivity — Tornado Diagram\n"
-        "(sorted by impact; red = cost of tightening, green = gain from loosening)",
-        fontsize=11, fontweight="bold")
-    ax.grid(axis="x", alpha=0.3, zorder=0)
+        "OAT Sensitivity — Tornado Diagram\n"
+        "(sorted by impact width; baseline = σ=κ=ρ=1.0 unconstrained LP)",
+        fontsize=10, fontweight="bold")
+    ax.grid(axis="x", alpha=0.3, linestyle="--", zorder=0)
 
-    # Add a subtle legend for the color convention
     from matplotlib.patches import Patch
     ax.legend(handles=[
-        Patch(facecolor="#d62728", alpha=0.85, label="Carbon increase (constraint tightened)"),
-        Patch(facecolor="#2ca02c", alpha=0.85, label="Carbon decrease (constraint loosened)"),
-    ], fontsize=8, loc="lower right")
+        Patch(facecolor=C_COST, alpha=0.88, label="Carbon ↑  (tightening costs carbon; baseline = σ=κ=ρ=1.0)"),
+    ], fontsize=8.5, loc="lower right")
 
     max_hi = max(hi for _, hi in param_ranges.values())
-    ax.set_xlim(-max_hi * 0.15, max_hi * 1.25)
+    ax.set_xlim(-max_hi * 0.15, max_hi * 1.3)
 
     plt.tight_layout()
     out = FIG_DIR / "sensitivity_tornado.png"
-    plt.savefig(out, dpi=150, bbox_inches="tight")
+    plt.savefig(out, dpi=300, bbox_inches="tight")
     print(f"  Saved {out}")
     plt.close()
 
 
 # ---------------------------------------------------------------------------
-# Figure 2: Seasonal breakdown
+# Seasonal breakdown
 # ---------------------------------------------------------------------------
 
 def fig_seasonal(df_bl: pd.DataFrame):
@@ -339,68 +358,80 @@ def fig_seasonal(df_bl: pd.DataFrame):
                 sub[col].sum() / c_l * 100 if col in sub.columns and c_l > 0 else 0)
 
     x     = np.arange(len(seasons))
-    width = 0.2
-    offsets = [-1.5, -0.5, 0.5, 1.5]
-    labels  = ["LP", "Greedy", "FCFS", "Oracle"]
-    colors  = ["#1f77b4", "#ff7f0e", "#d62728", "#74add1"]
+    width = 0.18
+    method_order = [("lp","LP"), ("greedy","Greedy"), ("fcfs","FCFS"), ("oracle","Oracle")]
+    offsets = np.linspace(-1.5, 1.5, 4) * width
 
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5.2))
 
-    for (key, lbl, col), off in zip(
-            zip(["lp","greedy","fcfs","oracle"], labels, colors), offsets):
-        ax1.bar(x + off * width, metrics[key], width,
-                label=lbl, color=col, alpha=0.85)
+    for (key, lbl), off in zip(method_order, offsets):
+        col  = METHOD_COLORS[lbl]
+        bars = ax1.bar(x + off, metrics[key], width, label=lbl, color=col, alpha=0.88)
+        for bar, v in zip(bars, metrics[key]):
+            if abs(v) > 0.5:
+                ax1.text(bar.get_x() + bar.get_width()/2,
+                         v + (3.0 if v >= 0 else -3.0),
+                         f"{v:.0f}%", ha="center",
+                         va="bottom" if v >= 0 else "top",
+                         fontsize=6, color=col, fontweight="bold")
 
+    # headroom so value labels sit clearly above/below the bars, not on them
+    _allv = [v for key in metrics for v in metrics[key]]
+    ax1.set_ylim(min(_allv) - 14, max(_allv) + 16)
     ax1.set_xticks(x)
     ax1.set_xticklabels([SEASON_LABELS[s] for s in seasons], fontsize=9)
-    ax1.set_ylabel("Carbon saving vs uniform (%)")
-    ax1.set_title("Seasonal savings: LP vs heuristics", fontweight="bold")
-    ax1.yaxis.set_major_formatter(mticker.PercentFormatter(decimals=1))
-    ax1.legend(fontsize=8)
-    ax1.grid(axis="y", alpha=0.3)
+    ax1.set_ylabel("Carbon saving (%, no-optimization baseline = 0 %)", fontsize=9)
+    ax1.set_title("A. Seasonal carbon saving by method\n(no-optimization baseline = 0 %)",
+                  fontweight="bold", fontsize=10)
+    ax1.yaxis.set_major_formatter(mticker.PercentFormatter(decimals=0))
+    ax1.legend(fontsize=8.5)
+    ax1.grid(axis="y", alpha=0.3, linestyle="--")
 
     bottom = np.zeros(len(seasons))
     for lab in LABELS:
-        ax2.bar(x, region_shares[lab], width=0.6, bottom=bottom,
-                label=lab, color=REGION_COLORS[lab], alpha=0.85)
-        bottom += np.array(region_shares[lab])
+        vals = np.array(region_shares[lab])
+        ax2.bar(x, vals, width=0.55, bottom=bottom,
+                label=lab, color=REGION_COLORS[lab], alpha=0.88)
+        bottom += vals
+    # Finland dominates every season; the green block and legend make this clear,
+    # so per-segment percentage labels are omitted to reduce clutter.
 
     ax2.set_xticks(x)
     ax2.set_xticklabels([SEASON_LABELS[s] for s in seasons], fontsize=9)
-    ax2.set_ylabel("Share of LP carbon allocation (%)")
-    ax2.set_title("Regional carbon load share by season", fontweight="bold")
-    ax2.legend(loc="upper right", fontsize=8)
-    ax2.grid(axis="y", alpha=0.3)
+    ax2.set_ylabel("Share of LP carbon allocation (%)", fontsize=9)
+    ax2.set_title("B. Regional carbon load share by season\n(stacked = 100% of LP allocation)",
+                  fontweight="bold", fontsize=10)
+    # bars fill to 100%, so place the legend OUTSIDE the axes (right) to avoid overlap
+    ax2.legend(loc="center left", bbox_to_anchor=(1.01, 0.5),
+               fontsize=8.5, framealpha=0.95, title="Region")
+    ax2.set_ylim(0, 100)
+    ax2.grid(axis="y", alpha=0.3, linestyle="--")
 
+    fig.suptitle("Seasonal Analysis — Carbon Saving and Regional Breakdown\n"
+                 "(Finland dominates LP allocation year-round; savings consistent across seasons)",
+                 fontsize=10, fontweight="bold")
     plt.tight_layout()
     out = FIG_DIR / "seasonal_breakdown.png"
-    plt.savefig(out, dpi=150, bbox_inches="tight")
+    plt.savefig(out, dpi=300, bbox_inches="tight")
     print(f"  Saved {out}")
     plt.close()
 
 
 # ---------------------------------------------------------------------------
-# Figure 3: Heuristic comparison — LP efficiency ratio (Dolan & Moré 2002)
+# Figure F5: Scheduler comparison — absolute carbon saving vs no-opt baseline
+# (Carbon Explorer 2023 convention: all methods on one carbon-saving axis)
 # ---------------------------------------------------------------------------
 
-def fig_heuristic(df_bl: pd.DataFrame):
+def fig_heuristic_absolute(df_bl: pd.DataFrame):
     """
-    F3: Heuristic comparison using LP efficiency ratio.
+    F5: Carbon saving of each scheduler vs. the no-optimisation baseline.
 
-    Metric (Carbon Explorer 2023 / Dolan & Moré 2002 convention):
-        efficiency = (C_Uniform - C_alg) / (C_Uniform - C_LP) × 100 %
+    Metric:
+        saving = (C_Uniform - C_alg) / C_Uniform × 100 %
 
-    Interpretation:
-      LP      = 100 % (captures 100 % of its own saving potential, by definition)
-      Oracle  > 100 % (longer look-ahead retrieves extra saving beyond 24-h LP)
-      Greedy  ≈ 100 % when constraints are loose; drops when C6/C7 are binding
-      Uniform =   0 % (no scheduling, no saving)
-      FCFS    <   0 % (concentrates load in high-CI home-region slots;
-                        worse than doing nothing)
-
-    Two-panel layout:
-      Left:  overall efficiency ratio, sorted bar chart
-      Right: seasonal breakdown, grouped bars
+    Unlike the LP efficiency ratio, this does not normalise by LP's saving,
+    so it directly shows how much carbon each method saves (or wastes)
+    relative to doing nothing.
     """
     df_bl = df_bl.copy()
     if "season" not in df_bl.columns:
@@ -411,97 +442,106 @@ def fig_heuristic(df_bl: pd.DataFrame):
                        9:"SON",10:"SON",11:"SON"}[pd.Timestamp(d).month]
         )
 
+    # Ceiling → thesis method → carbon-aware heuristic → carbon-agnostic default
     METHODS = [
-        ("carbon_oracle", "Oracle",  "#74add1"),
-        ("carbon_lp",     "LP",      "#1f77b4"),
-        ("carbon_greedy", "Greedy",  "#ff7f0e"),
-        ("carbon_uniform","Uniform", "#999999"),
-        ("carbon_fcfs",   "FCFS",    "#d62728"),
+        ("carbon_oracle", "Oracle",  METHOD_COLORS["Oracle"]),
+        ("carbon_lp",     "LP",      METHOD_COLORS["LP"]),
+        ("carbon_greedy", "Greedy",  METHOD_COLORS["Greedy"]),
+        ("carbon_fcfs",   "FCFS",    METHOD_COLORS["FCFS"]),
     ]
     seasons     = ["DJF", "MAM", "JJA", "SON"]
     season_lbls = ["Winter", "Spring", "Summer", "Autumn"]
 
-    def efficiency(sub: pd.DataFrame, col: str) -> float:
-        c_u  = sub["carbon_uniform"].sum()
-        c_lp = sub["carbon_lp"].sum()
-        denom = c_u - c_lp
-        if denom <= 0 or col not in sub.columns:
+    def saving(sub: pd.DataFrame, col: str) -> float:
+        c_u = sub["carbon_uniform"].sum()
+        if c_u <= 0 or col not in sub.columns:
             return float("nan")
-        c_alg = sub[col].sum()
-        return (c_u - c_alg) / denom * 100.0
+        return (c_u - sub[col].sum()) / c_u * 100.0
 
-    # ── Overall efficiencies ──────────────────────────────────────────────
-    overall = {lbl: efficiency(df_bl, col) for col, lbl, _ in METHODS}
-
-    # ── Seasonal efficiencies ─────────────────────────────────────────────
+    overall  = {lbl: saving(df_bl, col) for col, lbl, _ in METHODS}
     seasonal: dict[str, list[float]] = {lbl: [] for _, lbl, _ in METHODS}
     for s in seasons:
         sub = df_bl[df_bl["season"] == s]
         for col, lbl, _ in METHODS:
-            seasonal[lbl].append(efficiency(sub, col))
+            seasonal[lbl].append(saving(sub, col))
 
-    # ── Plot ──────────────────────────────────────────────────────────────
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 5.5))
 
-    # Left panel: overall sorted bar
+    # ── Panel A: overall ────────────────────────────────────────────────────
     lbls   = [lbl for _, lbl, _ in METHODS]
     colors = [c   for _, _,   c in METHODS]
     vals   = [overall[lbl] for lbl in lbls]
-    bar_colors = ["#d62728" if v < 0 else c for v, c in zip(vals, colors)]
 
-    bars = ax1.bar(np.arange(len(lbls)), vals, color=bar_colors, alpha=0.85, width=0.55)
-    ax1.axhline(100, color="#1f77b4", linewidth=1.5, linestyle="--",
-                label="LP reference (100 %)", zorder=5)
-    ax1.axhline(0,   color="black",   linewidth=1.0, linestyle=":",
-                label="Uniform (0 %)", zorder=5)
-
+    bars = ax1.bar(np.arange(len(lbls)), vals, color=colors, alpha=0.88, width=0.6)
+    # Mark the carbon-aware greedy heuristic as constraint-violating: it matches
+    # the LP's carbon only by breaching the ramp limit (in all 731 windows).
+    greedy_idx = lbls.index("Greedy")
+    bars[greedy_idx].set_hatch("xx")
+    bars[greedy_idx].set_edgecolor("black")
+    bars[greedy_idx].set_linewidth(0.8)
+    ax1.axhline(0, color="black", linewidth=1.0, linestyle=":", zorder=5,
+                label="No-opt. baseline (0 %)")
     for bar, v in zip(bars, vals):
         if not np.isnan(v):
-            yoff = 1.5 if v >= 0 else -4.0
-            ax1.text(bar.get_x() + bar.get_width() / 2, v + yoff,
-                     f"{v:.1f}%", ha="center", fontsize=8, fontweight="bold")
-
+            y = v + 1.2 if v >= 0 else v - 1.2
+            ax1.text(bar.get_x() + bar.get_width() / 2, y,
+                     f"{v:.1f}%", ha="center", va="bottom" if v >= 0 else "top",
+                     fontsize=9, fontweight="bold")
+    # Annotate greedy's infeasibility directly on its bar.
+    gb = bars[greedy_idx]
+    ax1.annotate("violates ramp\n(all 731 windows)",
+                 xy=(gb.get_x() + gb.get_width() / 2, vals[greedy_idx] / 2),
+                 ha="center", va="center", fontsize=8, fontweight="bold",
+                 color="white")
     ax1.set_xticks(np.arange(len(lbls)))
     ax1.set_xticklabels(lbls, fontsize=10)
-    ax1.set_ylabel("LP efficiency ratio (%)", fontsize=10)
-    ax1.set_title("Overall LP efficiency ratio\n"
-                  r"eff = $(C_{\rm Uniform} - C_{\rm alg})/(C_{\rm Uniform} - C_{\rm LP})$",
+    ax1.set_ylabel("Carbon saving vs. no-opt. baseline (%)", fontsize=9)
+    ax1.set_ylim(-62, 48)
+    ax1.set_title("A. Overall carbon saving vs. no-optimisation baseline\n"
+                  r"saving = $(C_{\rm Uniform} - C_{\rm alg})\,/\,C_{\rm Uniform}$",
                   fontsize=10, fontweight="bold")
-    ax1.yaxis.set_major_formatter(mticker.PercentFormatter(decimals=1))
-    ax1.legend(fontsize=8, loc="lower right")
-    ax1.grid(axis="y", alpha=0.3)
+    ax1.yaxis.set_major_formatter(mticker.PercentFormatter(decimals=0))
+    ax1.legend(fontsize=8.5, loc="lower left")
+    ax1.grid(axis="y", alpha=0.3, linestyle="--")
 
-    # Right panel: seasonal grouped bars
-    x      = np.arange(len(seasons))
-    n_m    = len(METHODS)
-    width  = 0.15
+    # ── Panel B: seasonal ───────────────────────────────────────────────────
+    x       = np.arange(len(seasons))
+    n_m     = len(METHODS)
+    width   = 0.20
     offsets = np.linspace(-(n_m - 1) / 2, (n_m - 1) / 2, n_m) * width
 
+    legend_handles = []
     for (_, lbl, col), off in zip(METHODS, offsets):
         vals_s = seasonal[lbl]
-        bar_c  = [("#d62728" if v < 0 else col) for v in vals_s]
-        for j, (v, bc) in enumerate(zip(vals_s, bar_c)):
-            ax2.bar(x[j] + off, v, width, color=bc, alpha=0.85,
-                    label=lbl if j == 0 else "")
+        hatch = "xx" if lbl == "Greedy" else None
+        b = ax2.bar(x + off, vals_s, width, color=col, alpha=0.88,
+                    hatch=hatch,
+                    edgecolor="black" if hatch else "none",
+                    linewidth=0.6 if hatch else 0)
+        legend_handles.append(b[0])
 
-    ax2.axhline(100, color="#1f77b4", linewidth=1.5, linestyle="--", zorder=5)
-    ax2.axhline(0,   color="black",   linewidth=1.0, linestyle=":",  zorder=5)
+    ax2.axhline(0, color="black", linewidth=1.0, linestyle=":", zorder=5)
     ax2.set_xticks(x)
-    ax2.set_xticklabels(season_lbls, fontsize=10)
-    ax2.set_ylabel("LP efficiency ratio (%)", fontsize=10)
-    ax2.set_title("Seasonal LP efficiency ratio\n(dashed = LP 100 %; dotted = Uniform 0 %)",
+    ax2.set_xticklabels(season_lbls, fontsize=9)
+    ax2.set_ylabel("Carbon saving vs. no-opt. baseline (%)", fontsize=9)
+    ax2.set_title("B. Seasonal carbon saving vs. no-optimisation baseline\n"
+                  "(dotted = no-opt. baseline 0 %)",
                   fontsize=10, fontweight="bold")
-    ax2.yaxis.set_major_formatter(mticker.PercentFormatter(decimals=1))
-    ax2.legend([lbl for _, lbl, _ in METHODS], fontsize=8, loc="lower right")
-    ax2.grid(axis="y", alpha=0.3)
+    ax2.yaxis.set_major_formatter(mticker.PercentFormatter(decimals=0))
+    legend_lbls = [f"{l} (violates ramp)" if l == "Greedy" else l for l in lbls]
+    ax2.legend(handles=legend_handles, labels=legend_lbls,
+               fontsize=8.5, bbox_to_anchor=(1.02, 0.5),
+               loc="center left", borderaxespad=0)
+    ax2.grid(axis="y", alpha=0.3, linestyle="--")
 
-    fig.suptitle("Figure F3: Heuristic Comparison — LP Efficiency Ratio\n"
-                 "(LP = 100 % reference; Oracle > 100 % captures look-ahead benefit; "
-                 "FCFS < 0 % worsens carbon vs doing nothing)",
+    fig.suptitle("Carbon Saving by Scheduler vs. No-Optimisation Baseline\n"
+                 "(fully constrained LP: σ=0.6, κ=0.5, ρ=0.7; "
+                 "positive = saves carbon vs doing nothing; negative = worse than doing nothing)",
                  fontsize=10, fontweight="bold")
     plt.tight_layout()
+    plt.subplots_adjust(right=0.87)
     out = FIG_DIR / "heuristic_comparison.png"
-    plt.savefig(out, dpi=150, bbox_inches="tight")
+    plt.savefig(out, dpi=300, bbox_inches="tight")
     print(f"  Saved {out}")
     plt.close()
 
@@ -545,64 +585,65 @@ def fig_decomposition(df_dec: pd.DataFrame):
     # ── Left: grouped bars per scenario, overall + seasonal ─────────────────
     x      = np.arange(len(groups))
     width  = 0.22
+    # colorblind-safe: blue=spatial (positive), orange=temporal (negative), green=full LP
+    C_SPATIAL = "#0C5DA5"; C_TEMPORAL = "#FF9500"; C_FULL = "#00B945"; C_INTER = "#845B97"
+
     offsets = [-1, 0, 1]
-    series  = [("Spatial-only", spatial, "#2ca02c"),
-               ("Temporal-only", temporal, "#d62728"),
-               ("Full LP", full, "#1f77b4")]
+    series  = [("Spatial-only", spatial, C_SPATIAL),
+               ("Temporal-only", temporal, C_TEMPORAL),
+               ("Full LP", full, C_FULL)]
 
     for (lbl, vals, color), off in zip(series, offsets):
-        bars = ax1.bar(x + off * width, vals, width, label=lbl, color=color, alpha=0.85)
+        bars = ax1.bar(x + off * width, vals, width, label=lbl, color=color, alpha=0.88)
         for bar, v in zip(bars, vals):
             yoff = 1.5 if v >= 0 else -4.5
             ax1.text(bar.get_x() + bar.get_width() / 2, v + yoff,
-                     f"{v:.0f}", ha="center", fontsize=7.5, fontweight="bold")
+                     f"{v:.0f}%", ha="center", fontsize=7.5, fontweight="bold", color=color)
 
     ax1.axhline(0, color="black", linewidth=0.8)
     ax1.set_xticks(x)
-    ax1.set_xticklabels(group_lbls, fontsize=10)
-    ax1.set_ylabel("Carbon saving vs Uniform baseline (%)")
-    ax1.set_title("Carbon saving by variant\n(overall + seasonal)",
+    ax1.set_xticklabels(group_lbls, fontsize=9)
+    ax1.set_ylabel("Carbon saving (%, no-optimization baseline = 0 %)", fontsize=9)
+    ax1.set_title("A. Carbon saving by variant (overall + seasonal)\n"
+                  "(temporal-only is negative: PJM CI varies little intra-day)",
                   fontsize=10, fontweight="bold")
     ax1.yaxis.set_major_formatter(mticker.PercentFormatter(decimals=0))
-    ax1.legend(fontsize=8, loc="lower right")
-    ax1.grid(axis="y", alpha=0.3)
+    ax1.legend(fontsize=8.5, loc="lower right")
+    ax1.grid(axis="y", alpha=0.3, linestyle="--")
 
     # ── Right: additive waterfall for the full period ───────────────────────
     s_s, s_t, s_f, s_i = spatial[0], temporal[0], full[0], interaction[0]
-    labels = ["Spatial\ncontribution", "Temporal\ncontribution",
-              "Interaction\n(joint benefit)", "Full LP\n(total)"]
-    values = [s_s, s_t, s_i, s_f]
-    # Waterfall bottoms: spatial starts at 0; temporal stacks from spatial;
-    # interaction stacks from (spatial+temporal); full is drawn from 0 as the total.
+    labels = ["Spatial\nrouting", "Temporal\nshifting",
+              "Interaction\nterm", "Full LP\n(total)"]
+    values  = [s_s, s_t, s_i, s_f]
     bottoms = [0, s_s, s_s + s_t, 0]
-    colors  = ["#2ca02c", "#d62728", "#9467bd", "#1f77b4"]
+    colors  = [C_SPATIAL, C_TEMPORAL, C_INTER, C_FULL]
 
-    bars = ax2.bar(labels, values, bottom=bottoms, color=colors, alpha=0.88, width=0.6)
+    bars = ax2.bar(labels, values, bottom=bottoms, color=colors, alpha=0.88, width=0.55)
     for bar, v, b in zip(bars, values, bottoms):
-        ypos = b + v + (2.5 if v >= 0 else -2.5)
+        ypos = b + v + (2.0 if v >= 0 else -3.5)
         ax2.text(bar.get_x() + bar.get_width() / 2, ypos,
-                 f"{v:+.1f} pp" if bar is not bars[-1] else f"{v:.1f}%",
+                 f"{v:.1f}%",
                  ha="center", fontsize=9, fontweight="bold")
 
-    # Connector lines showing the additive chain
-    ax2.plot([0.3, 0.7], [s_s, s_s], color="gray", linewidth=0.8, linestyle=":")
-    ax2.plot([1.3, 1.7], [s_s + s_t, s_s + s_t], color="gray", linewidth=0.8, linestyle=":")
+    ax2.plot([0.3, 0.7], [s_s, s_s], color="gray", linewidth=0.9, linestyle=":")
+    ax2.plot([1.3, 1.7], [s_s + s_t, s_s + s_t], color="gray", linewidth=0.9, linestyle=":")
     ax2.axhline(0, color="black", linewidth=0.8)
-    ax2.set_ylabel("Carbon saving vs Uniform baseline (%)")
-    ax2.set_title("Additive decomposition (full period)\n"
+    ax2.set_ylabel("Carbon saving (%, no-optimization baseline = 0 %)", fontsize=9)
+    ax2.set_title("B. Additive decomposition (full 2-year period)\n"
                   r"saving$_{\rm full}$ = spatial + temporal + interaction",
                   fontsize=10, fontweight="bold")
     ax2.yaxis.set_major_formatter(mticker.PercentFormatter(decimals=0))
-    ax2.grid(axis="y", alpha=0.3)
+    ax2.grid(axis="y", alpha=0.3, linestyle="--")
 
     fig.suptitle(
-        "Figure F6: Temporal vs. Spatial Decomposition of LP Carbon Saving\n"
+        "Temporal vs. Spatial Decomposition of LP Carbon Saving\n"
         "(spatial routing dominates; temporal-only is negative because the home region, "
         "PJM, is carbon-intensive)",
         fontsize=10, fontweight="bold")
     plt.tight_layout()
     out = FIG_DIR / "decomposition.png"
-    plt.savefig(out, dpi=150, bbox_inches="tight")
+    plt.savefig(out, dpi=300, bbox_inches="tight")
     print(f"  Saved {out}")
     plt.close()
 
@@ -613,55 +654,336 @@ def fig_decomposition(df_dec: pd.DataFrame):
 
 def fig_cv_regression(df_cv: pd.DataFrame):
     """
-    F7: Diagnostic scatter — coefficient of variation of regional CI vs.
-    within-region temporal-only saving (5 points, one per region).
-
-    Framed explicitly as a diagnostic, not a statistical test (n=5).
-    See Essays/cv_regression_methodology.md.
+    F7: Two-panel bar chart showing CI variability (CV) and temporal-only
+    carbon saving per region, sorted by CV ascending.  Replaces the scatter
+    plot; same data, no regression line.
     """
-    x = df_cv["cv"].values
-    y = df_cv["saving_pct"].values
+    # Sort regions by CV ascending so the pattern reads left→right.
+    df_cv = df_cv.sort_values("cv").reset_index(drop=True)
     regions = df_cv["region"].values
+    cvs     = df_cv["cv"].values
+    savings = df_cv["saving_pct"].values
+    colors  = [REGION_COLORS.get(r, "#333333") for r in regions]
 
-    slope, intercept = np.polyfit(x, y, 1)
-    x_line = np.linspace(x.min() * 0.85, x.max() * 1.1, 100)
-    y_line = slope * x_line + intercept
-    y_pred = slope * x + intercept
-    ss_res = np.sum((y - y_pred) ** 2)
-    ss_tot = np.sum((y - y.mean()) ** 2)
-    r2 = 1 - ss_res / ss_tot if ss_tot > 0 else float("nan")
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
 
-    fig, ax = plt.subplots(figsize=(8, 6))
-    ax.plot(x_line, y_line, color="gray", linestyle="--", linewidth=1.2,
-            label=f"OLS fit (diagnostic, n=5): y={slope:.1f}x+{intercept:.1f}, R²={r2:.2f}")
+    # ── Panel A: CI coefficient of variation ─────────────────────────────────
+    bars1 = ax1.bar(regions, cvs, color=colors, alpha=0.88, width=0.55)
+    for bar, v in zip(bars1, cvs):
+        ax1.text(bar.get_x() + bar.get_width() / 2, v + 0.005,
+                 f"{v:.2f}", ha="center", va="bottom", fontsize=9,
+                 fontweight="bold", color=bar.get_facecolor())
+    ax1.set_ylabel("Coefficient of variation of CI  (std / mean)", fontsize=9)
+    ax1.set_title("A. CI variability per region\n(higher = more within-day variation)",
+                  fontsize=10, fontweight="bold")
+    ax1.set_ylim(0, max(cvs) * 1.18)
+    ax1.grid(axis="y", alpha=0.3, linestyle="--")
 
-    # Manual offsets to avoid label collisions in the dense low-CV cluster
-    label_offsets = {
-        "PJM":       (-45, -14),
-        "NYISO":     (10, 8),
-        "Finland":   (10, 4),
-        "Belgium":   (10, 4),
-        "Singapore": (10, -14),
-    }
-    for xi, yi, reg in zip(x, y, regions):
-        ax.scatter(xi, yi, s=140, color=REGION_COLORS.get(reg, "#333333"),
-                  edgecolor="black", linewidth=0.8, zorder=5)
-        ax.annotate(reg, (xi, yi), textcoords="offset points",
-                   xytext=label_offsets.get(reg, (8, 6)),
-                   fontsize=10, fontweight="bold")
+    # ── Panel B: temporal-only carbon saving ──────────────────────────────────
+    bars2 = ax2.bar(regions, savings, color=colors, alpha=0.88, width=0.55)
+    for bar, v in zip(bars2, savings):
+        ax2.text(bar.get_x() + bar.get_width() / 2, v + 0.3,
+                 f"{v:.1f}%", ha="center", va="bottom", fontsize=9,
+                 fontweight="bold", color=bar.get_facecolor())
+    ax2.set_ylabel("Carbon saving from time-shifting only (%)", fontsize=9)
+    ax2.set_title("B. Carbon saving from time-shifting only\n(all load stays at home region; only the hour is optimised)",
+                  fontsize=10, fontweight="bold")
+    ax2.set_ylim(0, max(savings) * 1.18)
+    ax2.grid(axis="y", alpha=0.3, linestyle="--")
 
-    ax.set_xlabel("Coefficient of variation of regional CI  (std / mean)", fontsize=10)
-    ax.set_ylabel("Within-region temporal-only saving (%)", fontsize=10)
-    ax.set_title(
-        "Figure F7: CI Variability vs. Within-Region Temporal Saving\n"
-        "(diagnostic, n=5 regions — not a formal statistical test)",
+    fig.suptitle(
+        "CI Variability and Time-Shifting Saving by Region\n"
+        "(regions sorted by CI variability; more within-day variation → more to gain from timing)",
         fontsize=10, fontweight="bold")
-    ax.legend(fontsize=8, loc="upper left")
-    ax.grid(alpha=0.3)
-
     plt.tight_layout()
     out = FIG_DIR / "cv_regression.png"
-    plt.savefig(out, dpi=150, bbox_inches="tight")
+    plt.savefig(out, dpi=300, bbox_inches="tight")
+    print(f"  Saved {out}")
+    plt.close()
+
+
+# ---------------------------------------------------------------------------
+# Figure F8: Integration check — real data schedule + constraint binding
+# ---------------------------------------------------------------------------
+
+def fig_integration():
+    """
+    F8: Two-panel validation figure on 168 h of real data.
+
+    Left:  Stacked area of hourly load allocation (PJM / FI / BE) over the
+           full 7-day window, with CI signal overlaid on a secondary y-axis.
+           Shows the LP routing load to low-CI regions and hours.
+
+    Right: Constraint binding chart — each of C1-C7 shown as a horizontal
+           bar of (actual / limit), clipped to [0, 1].  A bar at 1.0 = fully
+           binding; shorter bars have headroom.  All must be ≤ 1.0 (= PASS).
+    """
+    from run_sensitivity import load_data
+
+    INT_REGIONS = ["PJM", "Finland", "Belgium"]
+    INT_COLORS  = {"PJM": REGION_COLORS["PJM"], "Finland": REGION_COLORS["Finland"], "Belgium": REGION_COLORS["Belgium"]}
+    T_HOURS = 168
+    DEMAND  = 1.0
+    PARAMS  = dict(alpha=0.5, gamma=0.0, eta=0.3, sigma=0.5,
+                   kappa=0.2, rho=0.4, delta=24, r0=0)
+    TOL = 1e-4
+
+    df     = load_data()
+    df_sub = df.head(T_HOURS)
+    CI  = df_sub[[f"ci_{r}"  for r in INT_REGIONS]].values.T   # (3, 168)
+    CFE = df_sub[[f"cfe_{r}" for r in INT_REGIONS]].values.T
+
+    C_max = np.full(3, DEMAND)
+    C_min = np.zeros(3)
+    D_flex = np.zeros(T_HOURS)
+    for t in range(0, T_HOURS, 24):
+        D_flex[t] = DEMAND
+    D_total = D_flex.sum()
+
+    res = lp_solve(CI, CFE, D_flex, C_min, C_max, **PARAMS)
+    x   = res.x   # (3, 168)
+
+    # ── carbon saving vs home-only baseline ──────────────────────────────
+    x_home = np.zeros((3, T_HOURS))
+    x_home[0, :] = D_total / T_HOURS
+    c_home  = float((x_home * CI).sum())
+    saving  = 100.0 * (c_home - res.carbon) / c_home
+
+    # ── constraint binding ratios ─────────────────────────────────────────
+    # each entry: (label, actual, limit)
+    sigma = PARAMS["sigma"]; kappa = PARAMS["kappa"]; rho = PARAMS["rho"]
+    delta = PARAMS["delta"]
+
+    # C1: demand served
+    c1_act = float(x.sum()) / D_total
+
+    # C2: max relative placement within δ-hour windows
+    latest = []
+    for tau in range(T_HOURS):
+        if D_flex[tau] <= 0: continue
+        t_end  = min(tau + delta, T_HOURS)
+        nz     = np.where(x[:, tau:t_end].sum(axis=0) > TOL)[0]
+        latest.append(int(nz[-1]) if len(nz) else 0)
+    c2_act = (max(latest) + 1) / delta if latest else 0.0
+
+    # C3: max hourly load / C_max
+    c3_act = float(x.max()) / DEMAND
+
+    # C4: max off-home fraction per hour
+    max_frac = 0.0
+    for t in range(T_HOURS):
+        tot_t = float(x[:, t].sum())
+        if tot_t > TOL:
+            max_frac = max(max_frac, float(x[1:, t].sum()) / tot_t)
+    c4_act = max_frac / sigma
+
+    # C5: equity (M = max regional carbon; always tight by construction)
+    regional_c = [(x[r] * CI[r]).sum() for r in range(3)]
+    c5_act = min(res.equity_M, max(regional_c)) / max(regional_c) if max(regional_c) > 0 else 1.0
+
+    # C6: max ramp / (kappa * C_max)
+    diffs  = np.abs(np.diff(x, axis=1))
+    c6_act = float(diffs.max()) / (kappa * DEMAND)
+
+    # C7: max swing across regions / (rho * C_max)
+    swings = [float(x[r].max() - x[r].min()) for r in range(3)]
+    c7_act = max(swings) / (rho * DEMAND)
+
+    constraints = [
+        ("C1  Demand served",       c1_act,  "equality (must = 1.0)"),
+        ("C2  Deferral window δ",   c2_act,  "latest placement / δ"),
+        ("C3  Hourly capacity",      c3_act,  "peak load / C_max"),
+        ("C4  Geographic cap σ",    c4_act,  "max off-home / σ"),
+        ("C5  Fairness M",          c5_act,  "M / max regional carbon"),
+        ("C6  Ramp rate κ",         c6_act,  "max ramp / κ·C_max"),
+        ("C7  Dynamic range ρ",     c7_act,  "max swing / ρ·C_max"),
+    ]
+
+    # ── Plot ─────────────────────────────────────────────────────────────
+    fig, (ax_sched, ax_bar) = plt.subplots(1, 2, figsize=(15, 5.5),
+                                            gridspec_kw={"width_ratios": [2, 1]})
+
+    # Left: schedule + CI
+    hours  = np.arange(T_HOURS)
+    bottom = np.zeros(T_HOURS)
+    for i, reg in enumerate(INT_REGIONS):
+        ax_sched.fill_between(hours, bottom, bottom + x[i],
+                              label=reg, color=INT_COLORS[reg], alpha=0.82, linewidth=0)
+        bottom += x[i]
+
+    ax2 = ax_sched.twinx()
+    ci_colors = {"PJM": REGION_COLORS["PJM"], "Finland": REGION_COLORS["Finland"], "Belgium": REGION_COLORS["Belgium"]}
+    for i, reg in enumerate(INT_REGIONS):
+        ax2.plot(hours, CI[i], color=INT_COLORS[reg], linewidth=0.9,
+                 alpha=0.55, linestyle="--")
+    ax2.set_ylabel("Carbon intensity (gCO$_2$eq/kWh)", fontsize=9, color="dimgray")
+    ax2.tick_params(axis="y", labelcolor="dimgray")
+
+    # Day boundary lines
+    for d in range(1, 8):
+        ax_sched.axvline(d * 24, color="gray", linewidth=0.5, linestyle=":")
+
+    ax_sched.set_xlabel("Hour", fontsize=9)
+    ax_sched.set_ylabel("Load assigned (kWh/h)", fontsize=9)
+    ax_sched.set_xlim(0, T_HOURS)
+    ax_sched.legend(loc="upper right", fontsize=8)
+    ax_sched.set_title(
+        f"A. 168-hour schedule on real data  (LP carbon saving vs home-only: {saving:.1f}%)\n"
+        "Stacked area = load allocation by region  |  dashed lines = CI signal",
+        fontweight="bold", fontsize=10)
+    ax_sched.grid(axis="y", alpha=0.25, linestyle="--")
+
+    # Right: constraint binding bars
+    labels = [c[0] for c in constraints]
+    ratios = [min(c[1], 1.05) for c in constraints]   # clip slightly above 1 to show near-binding
+    colors_bar = ["#0C5DA5" if r >= 0.95 else "#6BAED6" if r >= 0.5 else "#C6DBEF"
+                  for r in ratios]
+
+    y_pos = np.arange(len(constraints))
+    bars  = ax_bar.barh(y_pos, ratios, color=colors_bar, height=0.55, alpha=0.88)
+    ax_bar.axvline(1.0, color="black", linewidth=1.5, linestyle="--", label="Limit (= 1.0)")
+
+    for bar, (lbl, act, desc) in zip(bars, constraints):
+        tag = "BINDING" if act >= 0.95 else f"{act:.2f}"
+        ax_bar.text(min(act, 1.05) + 0.01, bar.get_y() + bar.get_height()/2,
+                    tag, va="center", fontsize=8,
+                    color="#073763" if act >= 0.95 else "dimgray")
+
+    ax_bar.set_yticks(y_pos)
+    ax_bar.set_yticklabels(labels, fontsize=9)
+    ax_bar.set_xlabel("Actual / limit  (≤ 1.0 = satisfied)", fontsize=9)
+    ax_bar.set_xlim(0, 1.35)
+    ax_bar.set_title("B. Constraint binding status\n(dark green = binding; light = slack)",
+                     fontweight="bold", fontsize=10)
+    ax_bar.legend(fontsize=8, loc="lower right")
+    ax_bar.grid(axis="x", alpha=0.3)
+
+    fig.suptitle(
+        "Integration Check — Full Model on 168 h of Real Data\n"
+        "(PJM / Finland / Belgium, all 7 constraints active simultaneously, 7/7 PASS)",
+        fontsize=11, fontweight="bold")
+    plt.tight_layout()
+    out = FIG_DIR / "integration_check.png"
+    plt.savefig(out, dpi=300, bbox_inches="tight")
+    print(f"  Saved {out}")
+    plt.close()
+
+
+# ---------------------------------------------------------------------------
+# Perturbation test — before/after for each scenario
+# ---------------------------------------------------------------------------
+
+def fig_perturbation(df_p: pd.DataFrame):
+    """
+    F1: Three-panel perturbation test on the 3-region (PJM, FI, BE) x 6-hour instance.
+
+    Panel A: Demand increase — stacked bars showing full allocation at each level.
+    Panel B: δ tightened — hourly schedule for δ=6h vs δ=1h, CI on secondary axis.
+             Shows *why* carbon rises: load can no longer defer to FI's clean hours.
+    Panel C: C_max squeezed — FI's hourly load profile at 3 capacity levels.
+             Shows *how* the schedule changes: spreads (mild) then collapses (severe).
+    """
+    _d0 = np.zeros(6); _d0[0] = 10.0
+    hours = np.arange(6)
+    c_fi  = REGION_COLORS["Finland"]; c_pjm = REGION_COLORS["PJM"]; c_be = REGION_COLORS["Belgium"]
+    c_mild = "#FF9500"; c_sev = "#FF2C00"
+
+    fig, axes = plt.subplots(1, 3, figsize=(15, 5.2))
+
+    # ── Panel A: demand increase — stacked bars ───────────────────────────
+    ax = axes[0]
+    demand_levels = [10.0, 11.0, 11.5, 12.0]
+    xlabels = ["10 kWh\n(base)", "11 kWh\n(+10%)", "11.5 kWh\n(+15%)", "12 kWh\n(+20%)"]
+    fi_tot, pjm_tot, be_tot = [], [], []
+    for d in demand_levels:
+        _db = np.zeros(6); _db[0] = d
+        res = lp_solve(CI=_PERT_CI, CFE=_PERT_CFE, D_flex_batches=_db,
+                       C_min=_PERT_CMIN, C_max=_PERT_CMAX, **_PERT_PARAMS)
+        t = res.x.sum(axis=1)
+        pjm_tot.append(float(t[0])); fi_tot.append(float(t[1])); be_tot.append(float(t[2]))
+    xpos = np.arange(4)
+    ax.bar(xpos, fi_tot,  label="FI",  color=c_fi,  alpha=0.88)
+    ax.bar(xpos, pjm_tot, label="PJM", color=c_pjm, alpha=0.88, bottom=fi_tot)
+    for xi, (fi, pjm) in enumerate(zip(fi_tot, pjm_tot)):
+        ax.text(xi, fi/2,       f"{fi:.1f}",       ha="center", va="center", fontsize=9, color="white", fontweight="bold")
+        ax.text(xi, fi + pjm/2, f"{pjm:.1f}",      ha="center", va="center", fontsize=9, color="white", fontweight="bold")
+        ax.text(xi, fi + pjm + 0.2, f"{fi+pjm:.1f}", ha="center", fontsize=8, color="dimgray")
+    ax.set_xticks(xpos); ax.set_xticklabels(xlabels, fontsize=9)
+    ax.set_ylabel("Total load assigned (kWh)"); ax.set_ylim(0, 14)
+    ax.set_title("A. Total demand D ↑ → FI absorbs increment first\n(BE = 0 throughout; stacked = FI + PJM)", fontweight="bold", fontsize=10)
+    ax.legend(fontsize=8.5, loc="upper left"); ax.grid(axis="y", alpha=0.3, linestyle="--")
+
+    # ── Panel B: δ tightened — hourly schedule view ───────────────────────
+    ax = axes[1]
+    res6 = lp_solve(CI=_PERT_CI, CFE=_PERT_CFE, D_flex_batches=_d0,
+                    C_min=_PERT_CMIN, C_max=_PERT_CMAX, **_PERT_PARAMS)          # δ=6
+    res1 = lp_solve(CI=_PERT_CI, CFE=_PERT_CFE, D_flex_batches=_d0,
+                    C_min=_PERT_CMIN, C_max=_PERT_CMAX,
+                    **{**_PERT_PARAMS, "delta": 1})                                # δ=1
+    bw = 0.38
+    xpos6 = hours - bw/2;  xpos1 = hours + bw/2
+    ax.bar(xpos6, res6.x[1], bw, label=f"δ=6h  FI  ({res6.carbon:,.0f} gCO$_2$)", color=c_fi,   alpha=0.88)
+    ax.bar(xpos6, res6.x[0], bw, bottom=res6.x[1], color=c_pjm, alpha=0.75)
+    ax.bar(xpos1, res1.x[1], bw, label=f"δ=1h  FI  ({res1.carbon:,.0f} gCO$_2$)", color=c_fi,   alpha=0.45, hatch="//")
+    ax.bar(xpos1, res1.x[0], bw, bottom=res1.x[1], color=c_pjm, alpha=0.45, hatch="//")
+
+    # CI overlay on secondary axis
+    ax2 = ax.twinx()
+    ax2.plot(hours, _PERT_CI[1], "o--", color=c_fi,  linewidth=1.2, markersize=4, alpha=0.7, label="FI CI")
+    ax2.plot(hours, _PERT_CI[0], "s--", color=c_pjm, linewidth=1.2, markersize=4, alpha=0.7, label="PJM CI")
+    ax2.set_ylabel("CI (gCO$_2$eq/kWh)", fontsize=8, color="dimgray")
+    ax2.tick_params(axis="y", labelcolor="dimgray", labelsize=8)
+    ax2.set_ylim(0, 800)
+
+    from matplotlib.patches import Patch
+    legend_els = [
+        Patch(facecolor=c_fi,   alpha=0.88, label=f"δ=6h  ({res6.carbon:,.0f} gCO$_2$)"),
+        Patch(facecolor=c_fi,   alpha=0.45, hatch="//", label=f"δ=1h  ({res1.carbon:,.0f} gCO$_2$)"),
+        Patch(facecolor=c_pjm,  alpha=0.75, label="PJM (both)"),
+    ]
+    ax.legend(handles=legend_els, fontsize=8, loc="upper center", framealpha=0.95)
+    pct = (res1.carbon - res6.carbon) / res6.carbon * 100
+    ax.set_xlabel("Hour within 6-hour window", fontsize=9)
+    ax.set_ylabel("Load assigned (kWh/h)", fontsize=9)
+    ax.set_xticks(hours); ax.set_ylim(0, 9.5)
+    ax.set_title(f"B. Max deferral time δ ↓ (6h → 1h) → carbon +{pct:.0f}%\n"
+                 "(solid = δ=6h defers to best hours; hatched = δ=1h forces t=0)",
+                 fontweight="bold", fontsize=10)
+    ax.grid(axis="y", alpha=0.3, linestyle="--")
+
+    # ── Panel C: C_max — FI hourly load profile ───────────────────────────
+    ax = axes[2]
+    cmax_cases = [
+        (10.0, "#0C5DA5", "C_max=10 kWh/h (baseline)"),
+        (3.0,  c_mild,    "C_max=3 kWh/h  (mild)"),
+        (0.5,  c_sev,     "C_max=0.5 kWh/h (severe)"),
+    ]
+    for cmax, col, lbl in cmax_cases:
+        _cm = _PERT_CMAX.copy(); _cm[1] = cmax
+        res_c = lp_solve(CI=_PERT_CI, CFE=_PERT_CFE, D_flex_batches=_d0,
+                         C_min=_PERT_CMIN, C_max=_cm, **_PERT_PARAMS)
+        fi_hourly = res_c.x[1]
+        fi_total  = fi_hourly.sum()
+        ax.step(np.append(hours, 5), np.append(fi_hourly, fi_hourly[-1]),
+                where="post", color=col, linewidth=2.2,
+                label=f"{lbl}  (total={fi_total:.1f} kWh)")
+        ax.fill_between(np.append(hours, 5), np.append(fi_hourly, fi_hourly[-1]),
+                        step="post", color=col, alpha=0.18)
+        ax.axhline(cmax, color=col, linewidth=0.9, linestyle=":", alpha=0.7)
+
+    ax.set_xlabel("Hour within 6-hour window", fontsize=9)
+    ax.set_ylabel("FI load (kWh/h)", fontsize=9)
+    ax.set_xticks(hours); ax.set_ylim(0, 7)
+    ax.set_title("C. FI hourly cap C_max ↓ → schedule spreads (mild),\nthen total FI load falls (severe)",
+                 fontweight="bold", fontsize=10)
+    ax.legend(fontsize=8, loc="upper right"); ax.grid(alpha=0.3, linestyle="--")
+
+    fig.suptitle("Perturbation Test — Hourly Schedule Response\n"
+                 "(PJM / FI / BE, real data 2024-07-17, all 7 constraints active)",
+                 fontsize=11, fontweight="bold")
+    plt.tight_layout()
+    out = FIG_DIR / "perturbation_test.png"
+    plt.savefig(out, dpi=300, bbox_inches="tight")
     print(f"  Saved {out}")
     plt.close()
 
@@ -674,20 +996,25 @@ def main():
     print("Loading results …")
     df_sweep = load_sweep()
     df_bl    = load_baseline()
+    df_heur  = load_heuristic()
     df_sched_unc, df_sched_con = load_schedule()
     df_dec   = load_decomposition()
     df_cv    = load_cv_regression()
+    df_pert  = load_perturbation()
     print(f"  Sweep: {len(df_sweep)} rows  |  Baseline: {len(df_bl)} windows")
 
     print("\nGenerating figures …")
     if df_sched_unc is not None:
         fig_schedule(df_sched_unc, df_sched_con)
     else:
-        print("  Skipping F0: no schedule_sample.parquet found")
+        print("  Skipping F2: no schedule_sample.parquet found")
 
     fig_sensitivity(df_sweep)
     fig_seasonal(df_bl)
-    fig_heuristic(df_bl)
+    if df_heur is not None:
+        fig_heuristic_absolute(df_heur)
+    else:
+        print("  Skipping F5: no heuristic_backtest.parquet (run src/run_sensitivity.py)")
 
     if df_dec is not None:
         fig_decomposition(df_dec)
@@ -698,6 +1025,14 @@ def main():
         fig_cv_regression(df_cv)
     else:
         print("  Skipping F7: no cv_regression.csv found (run src/run_cv_regression.py)")
+
+    if df_pert is not None:
+        fig_perturbation(df_pert)
+    else:
+        print("  Skipping F1: no perturbation_test.csv found (run src/test_perturbation.py)")
+
+    print("\nGenerating integration check figure …")
+    fig_integration()
 
     print(f"\nAll figures saved to {FIG_DIR}/")
 

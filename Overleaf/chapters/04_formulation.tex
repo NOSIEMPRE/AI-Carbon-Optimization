@@ -1,0 +1,210 @@
+\section{Optimization Model}
+\label{sec:formulation}
+
+This section presents the optimization model. Figure~\ref{fig:model-overview} gives an overview of how it operates, after which the section states the scheduling problem, defines the inputs and the decision variable, the objective, and the seven constraints, and closes with the parameter settings and the solution method.
+
+\begin{figure}[t]
+\centering
+\begin{tikzpicture}[
+  >={Stealth[length=2.4mm]},
+  incell/.style={rectangle, rounded corners=2pt, draw=ieblue, thick, fill=white,
+                 align=center, inner sep=3pt, text width=2.05cm, minimum height=1.05cm,
+                 font=\scriptsize},
+  ccell/.style={rectangle, rounded corners=2pt, draw=ieblue, thick, fill=white,
+                align=center, inner sep=2pt, text width=1.45cm, minimum height=1.0cm,
+                font=\scriptsize},
+  varcell/.style={rectangle, rounded corners=2pt, draw=ieblue, thick, fill=ieblue!8,
+                  align=center, inner sep=4pt, text width=11.4cm, minimum height=0.55cm,
+                  font=\small},
+  objcell/.style={rectangle, rounded corners=2pt, draw=ieblue, very thick, fill=ieblue!8,
+                  align=center, inner sep=4pt, text width=11.4cm, minimum height=0.85cm,
+                  font=\small},
+  schedcell/.style={rectangle, rounded corners=2pt, draw=ieblue, very thick, fill=ieblue!14,
+                    align=center, inner sep=4pt, text width=9cm, minimum height=0.6cm,
+                    font=\small},
+  evalcell/.style={rectangle, rounded corners=2pt, draw=ieblue, thick, fill=white,
+                   align=center, inner sep=3pt, text width=2.9cm, minimum height=1.15cm,
+                   font=\scriptsize},
+  grp/.style={rectangle, rounded corners=4pt, draw=ieblue!50, thick, dashed, inner sep=0.3cm},
+  glab/.style={font=\footnotesize\bfseries, text=ieblue, fill=white, inner sep=2pt},
+  arr/.style={->, very thick, draw=ieblue}
+]
+
+% ---- Data (read from the grid) ----
+\node[incell] (in1) {$\mathrm{CI}_{r,t}$\\[1pt] carbon intensity};
+\node[incell, right=0.34cm of in1] (in2) {$\mathrm{CFE}_{r,t}$\\[1pt] carbon-free fraction};
+\node[incell, right=0.34cm of in2] (in3) {$D^{\text{flex}}_{t}$\\[1pt] flexible demand};
+\node[incell, right=0.34cm of in3] (in4) {$\mathcal{R},\,\mathcal{T}$\\[1pt] regions, hours};
+\begin{scope}[on background layer]
+  \node[grp, fit=(in1)(in4)] (gdata) {};
+\end{scope}
+\node[glab, anchor=west] at (gdata.north west) {\,Data (given)\,};
+
+% ---- Parameters (chosen by the modeller) ----
+\node[incell, right=0.95cm of in4] (par) {$\alpha,\sigma,\delta,\kappa,\rho,\eta$\\[1pt] parameters};
+\begin{scope}[on background layer]
+  \node[grp, fit=(par)] (gparam) {};
+\end{scope}
+\node[glab, anchor=west] at (gparam.north west) {\,Parameters (set)\,};
+
+% ---- Linear program: decision variable, objective, constraints ----
+\node[varcell, below=1.9cm of in3, xshift=0.35cm] (var)
+  {\textbf{Decision variable:}\ \ $x_{r,t}\ge 0$, the flexible load run in region $r$ at hour $t$};
+\node[objcell, below=0.28cm of var] (obj)
+  {\textbf{Objective:}\ \ $\displaystyle \min_{x,\,M}\ \sum_{r,t} x_{r,t}\,\mathrm{CI}_{r,t}\,(1-\alpha\,\mathrm{CFE}_{r,t}) \;+\; \eta\,M$};
+\node[ccell, below=0.55cm of obj] (c4) {\textbf{C4}\\[1pt] geo cap $\sigma$};
+\node[ccell, left=0.16cm of c4] (c3) {\textbf{C3}\\[1pt] capacity};
+\node[ccell, left=0.16cm of c3] (c2) {\textbf{C2}\\[1pt] deadline $\delta$};
+\node[ccell, left=0.16cm of c2] (c1) {\textbf{C1}\\[1pt] demand met};
+\node[ccell, right=0.16cm of c4] (c5) {\textbf{C5}\\[1pt] equity $\eta$};
+\node[ccell, right=0.16cm of c5] (c6) {\textbf{C6}\\[1pt] ramp $\kappa$};
+\node[ccell, right=0.16cm of c6] (c7) {\textbf{C7}\\[1pt] range $\rho$};
+\begin{scope}[on background layer]
+  \node[grp, fit=(var)(obj)(c1)(c7)] (glp) {};
+\end{scope}
+\node[glab, anchor=west] at (glp.north west) {\,Linear program\,};
+
+% ---- Optimal schedule ----
+\node[schedcell, below=0.9cm of glp] (sched)
+  {\textbf{Optimal schedule}\ \ $x^{\star}_{r,t}$: flexible load in every region and hour};
+
+% ---- Evaluation ----
+\node[evalcell, below=0.95cm of sched, xshift=-5.33cm] (ev1)
+  {\textbf{Rolling-window}\\ \textbf{backtest}\\[1pt] 731 windows};
+\node[evalcell, below=0.95cm of sched, xshift=-1.78cm] (ev2)
+  {\textbf{Scheduler}\\ \textbf{comparison}\\[1pt] Oracle, Greedy, FCFS};
+\node[evalcell, below=0.95cm of sched, xshift=1.78cm] (ev3)
+  {\textbf{Sensitivity}\\ \textbf{analysis}\\[1pt] one-at-a-time};
+\node[evalcell, below=0.95cm of sched, xshift=5.33cm] (ev4)
+  {\textbf{Spatio-temporal}\\ \textbf{decomposition}\\[1pt] routing vs.\ timing};
+\begin{scope}[on background layer]
+  \node[grp, fit=(ev1)(ev4)] (gev) {};
+\end{scope}
+\node[glab, anchor=west] at (gev.north west) {\,Evaluation (2024--2025)\,};
+
+% ---- Flow arrows ----
+\coordinate (d1) at ([yshift=-7mm]gdata.south);
+\coordinate (p1) at ([yshift=-7mm]gparam.south);
+\coordinate (busc) at (glp.north |- d1);
+\draw[thick, draw=ieblue] (gdata.south) -- (d1);
+\draw[thick, draw=ieblue] (gparam.south) -- (p1);
+\draw[thick, draw=ieblue, rounded corners=3pt] (d1) -- (p1);
+\draw[arr] (busc) -- (glp.north);
+\draw[arr] (glp.south) -- (sched.north);
+\draw[arr] (sched.south) -- (gev.north);
+\end{tikzpicture}
+\caption{Overview of the optimization model. Hourly carbon signals, flexible demand, and operational parameters enter a linear program defined by a single decision variable $x_{r,t}$, a carbon-minimizing objective discounted by the carbon-free energy fraction, and seven operational constraints (C1--C7). Its solution is the optimal schedule $x^{\star}_{r,t}$, which is evaluated over the 2024--2025 horizon through a rolling-window backtest, a comparison against three reference schedulers, a one-at-a-time sensitivity analysis, and a spatio-temporal decomposition.}
+\label{fig:model-overview}
+\end{figure}
+
+The model maps the hourly grid signals and flexible demand to a schedule through a linear program that minimizes the operational carbon of the schedule, discounted by the carbon-free energy fraction, together with an equity term, subject to the seven operational constraints. Its solution is an optimal schedule specifying how much flexible load runs in each region and hour. Applied in a rolling window across the two-year horizon, the schedule is then evaluated against a no-optimization baseline and three reference schedulers, and analysed through the sensitivity and decomposition studies of Section~\ref{sec:results}. The remainder of this section defines each component in turn.
+
+\subsection{Problem Setting}
+\label{sec:form-setting}
+
+A data-center operator receives a stream of flexible compute demand that must be completed within a bounded deadline rather than at the instant it arrives. The operator runs facilities in several regions, each connected to a distinct electricity grid, and must decide how much of the demand to serve in each region during each hour of a planning horizon. Serving a unit of load in a given region-hour emits carbon in proportion to that grid's carbon intensity at that hour, so the same unit of work carries a different carbon cost depending on when and where it runs.
+
+Two degrees of freedom make this cost partly controllable. The operator can defer flexible load to later hours within the deadline, which constitutes temporal flexibility, and it can move load from its home region to a cleaner one, which constitutes spatial flexibility. Neither degree of freedom is unconstrained in practice, because a deferral deadline limits how long work can wait, a geographic cap limits how much load may leave the home region, and ramp and capacity limits constrain how sharply a region's load can change between consecutive hours. The problem is therefore to choose a complete assignment of flexible load to region-hours that minimizes total emitted carbon while respecting these operational limits, solved to optimality rather than through a heuristic rule.
+
+\subsection{Decision Variables and Objective Function}
+\label{sec:form-notation}
+
+Let $\mathcal{R} = \{1, \dots, R\}$ be the set of grid regions, one of which, $r_0$, is the home region where demand originates, and let $\mathcal{T} = \{1, \dots, T\}$ be the set of hours in the planning horizon, indexed by $t$. For each region-hour the carbon intensity $\text{CI}_{r,t}$ and the carbon-free energy fraction $\text{CFE}_{r,t} \in [0,1]$ are known inputs drawn from the data of Section~\ref{sec:problem}. Flexible demand arrives over time, with $D^{\text{flex}}_{\tau}$ kilowatt-hours arriving at hour $\tau$ and a total of $D^{\text{flex}} = \sum_{\tau \in \mathcal{T}} D^{\text{flex}}_{\tau}$.
+
+The single decision variable is the flexible load assignment
+\begin{equation}
+x_{r,t} \;\geq\; 0, \qquad r \in \mathcal{R}, \; t \in \mathcal{T},
+\end{equation}
+which gives the kilowatt-hours of flexible work served in region $r$ during hour $t$. The matrix $\mathbf{x} \in \mathbb{R}^{R \times T}$ therefore encodes a complete schedule, specifying jointly \emph{when} (the column $t$) and \emph{where} (the row $r$) each unit of load runs. A few auxiliary variables linearize two of the constraints below, namely $M \geq 0$ for the worst-case regional carbon (C5) and per-region bounds $u_r$ and $\ell_r$ for the load range (C7); each is defined where it first appears.
+
+Given these variables, the model minimizes a weighted sum of three terms,
+\begin{equation}
+\min_{\mathbf{x},\, M} \;\;
+\underbrace{\sum_{r \in \mathcal{R}} \sum_{t \in \mathcal{T}} x_{r,t}\, \text{CI}_{r,t}\,\bigl(1 - \alpha\,\text{CFE}_{r,t}\bigr)}_{\text{operational carbon}}
+\;+\;
+\underbrace{\gamma \sum_{r \neq r_0} \sum_{t \in \mathcal{T}} x_{r,t}}_{\text{transfer cost}}
+\;+\;
+\underbrace{\eta\, M}_{\text{equity}}.
+\label{eq:objective}
+\end{equation}
+
+The first term is the operational carbon of the schedule. Rather than weighting each unit of load by raw carbon intensity, it applies a multiplicative discount $\bigl(1 - \alpha\,\text{CFE}_{r,t}\bigr)$ so that electricity which is structurally clean, in the sense of a high carbon-free energy fraction, is treated as cheaper than its carbon intensity alone would suggest. The coefficient $\alpha \in [0,1]$ controls the strength of this discount. At $\alpha = 0$ the discount vanishes and the model minimizes pure carbon intensity, whereas at $\alpha = 1$ a fully carbon-free hour carries zero effective cost. The exploratory regression in Section~\ref{sec:problem} found implied discounts of $0.83$ to $1.00$ across the four non-fossil grids, so the signal is empirically strong, and the model adopts a conservative $\alpha = 0.5$ as its baseline.
+
+The second term charges a per-unit cost $\gamma$ for any load routed away from the home region, representing the operational friction of moving work across sites. Because the experiments instead control geographic movement directly through the hard cap in constraint~C4, $\gamma$ is set to zero throughout, and the term is retained only to show that a soft transfer penalty is expressible within the same formulation. The third term penalizes the carbon borne by the most heavily loaded region through the weight $\eta$, which discourages concentrating emissions in a single grid. Setting $\gamma$ and $\eta$ to zero recovers a pure carbon-minimization objective, which makes the contribution of each term independently testable.
+
+\subsection{Constraints}
+\label{sec:form-constraints}
+
+The schedule must satisfy seven operational constraints, presented in turn below and referred to throughout as C1 to C7. The last two are written in the linear two-inequality form in which they are actually solved.
+
+The first constraint is demand completion. All flexible demand must eventually be served, so that the model lowers carbon by reshaping the schedule rather than by dropping work,
+\begin{equation}
+\sum_{r \in \mathcal{R}} \sum_{t \in \mathcal{T}} x_{r,t} \;=\; D^{\text{flex}}. \tag{C1}\label{eq:c1}
+\end{equation}
+
+The second is a latency bound. A batch of demand arriving at hour $\tau$ must be completed within $\delta$ hours of arrival, which stops the model from deferring everything to a single distant clean hour at the cost of every deadline,
+\begin{equation}
+\sum_{r \in \mathcal{R}} \sum_{t'=\tau}^{\tau+\delta} x_{r,t'} \;\geq\; D^{\text{flex}}_{\tau} \qquad \forall\, \tau \in \mathcal{T}. \tag{C2}\label{eq:c2}
+\end{equation}
+
+The third is a pair of capacity bounds. The load served in each region in any hour lies between a floor and a ceiling fixed by its physical supply and cooling limits,
+\begin{equation}
+C^{\min}_{r} \;\leq\; x_{r,t} \;\leq\; C^{\max}_{r} \qquad \forall\, r \in \mathcal{R},\, t \in \mathcal{T}. \tag{C3}\label{eq:c3}
+\end{equation}
+Because the floor satisfies $C^{\min}_{r} \geq 0$, non-negativity of $x_{r,t}$ follows automatically.
+
+The fourth constraint, which proves the most consequential in the results, is the geographic transfer limit. At each hour the load served outside the home region cannot exceed a fraction $\sigma$ of the total dispatched load,
+\begin{equation}
+\sum_{r \neq r_0} x_{r,t} \;\leq\; \sigma \sum_{r \in \mathcal{R}} x_{r,t} \qquad \forall\, t \in \mathcal{T}. \tag{C4}\label{eq:c4}
+\end{equation}
+Setting $\sigma = 1$ removes the restriction, whereas smaller values progressively confine work to the home grid. Expressing the bound relative to dispatched load, rather than to total demand, keeps it meaningful however much demand is deferred.
+
+The fifth constraint is the equity auxiliary. The variable $M$ is held above every region's total carbon, so that the term $\eta M$ in the objective acts on the most-burdened region,
+\begin{equation}
+M \;\geq\; \sum_{t \in \mathcal{T}} x_{r,t}\, \text{CI}_{r,t} \qquad \forall\, r \in \mathcal{R}. \tag{C5}\label{eq:c5}
+\end{equation}
+
+The sixth constraint is a ramp-rate limit, which smooths the schedule in time by capping how sharply a region's load may change between consecutive hours. The absolute value is expressed as the two linear inequalities actually solved, bounding upward and downward steps by the same fraction $\kappa$ of capacity,
+\begin{align}
+x_{r,t} - x_{r,t-1} &\;\leq\; \kappa\, C^{\max}_{r}, \tag{C6a}\label{eq:c6a}\\
+x_{r,t-1} - x_{r,t} &\;\leq\; \kappa\, C^{\max}_{r}, \tag{C6b}\label{eq:c6b}
+\end{align}
+for all $r \in \mathcal{R}$ and $t \in \{2, \dots, T\}$.
+
+The seventh constraint is a dynamic-range limit, which caps the peak-to-trough spread of a region's load over the whole horizon. It is linearized with per-region auxiliary variables $u_r$ and $\ell_r$ that bound the highest and lowest hourly load, so that the range itself is capped at a fraction $\rho$ of capacity,
+\begin{align}
+\ell_r \;\leq\; x_{r,t} &\;\leq\; u_r \qquad \forall\, r \in \mathcal{R},\, t \in \mathcal{T}, \tag{C7a}\label{eq:c7a}\\
+u_r - \ell_r &\;\leq\; \rho\, C^{\max}_{r} \qquad \forall\, r \in \mathcal{R}. \tag{C7b}\label{eq:c7b}
+\end{align}
+The ramp and range limits are inactive at $\kappa = 1$ and $\rho = 1$ and tighten as those values fall, following the capacity-variation characterization of \citet{wijayawardana2025scheduling}.
+
+\subsection{Parameters and Solution Method}
+\label{sec:form-parameters}
+
+The objective and constraints above introduce seven tunable coefficients, $\alpha$, $\sigma$, $\delta$, $\kappa$, $\rho$, $\eta$, and $\gamma$, which are distinct from the data inputs of Section~\ref{sec:form-notation} in that they are chosen by the modeller rather than read from the grid. Table~\ref{tab:params} summarizes each coefficient, its role, and the range over which it is tested in Section~\ref{sec:results}. Two parameter regimes recur in the evaluation. The sensitivity analysis varies one parameter at a time while holding the others at their loosest, carbon-permitting settings, which isolates the marginal effect of each. The scheduler comparison instead fixes a single fully constrained operational regime, $\sigma = 0.6$, $\kappa = 0.5$, and $\rho = 0.7$, that represents a realistic deployment in which all limits are active at once.
+
+\begin{table}[tbp]
+\centering\small
+\setlength{\tabcolsep}{8pt}
+\renewcommand{\arraystretch}{1.2}
+\begin{tabularx}{\linewidth}{clXl}
+\toprule
+\textbf{Symbol} & \textbf{Role} & \textbf{Interpretation} & \textbf{Tested range} \\
+\midrule
+$\alpha$ & CFE discount      & Weight on the carbon-free energy signal & $\{0,\,0.25,\,0.5,\,0.75,\,1.0\}$ \\
+$\sigma$ & Geographic cap    & Max share of load served off the home region & $\{0.3,\,0.5,\,0.7,\,0.9,\,1.0\}$ \\
+$\delta$ & Latency window    & Hours within which arriving load must finish & $\{6,\,12,\,24,\,48\}$ \\
+$\kappa$ & Ramp rate         & Max hour-to-hour change, as a share of $C^{\max}$ & $\{0.1,\,0.2,\,0.5,\,0.8,\,1.0\}$ \\
+$\rho$   & Dynamic range     & Max peak-to-trough range, as a share of $C^{\max}$ & $\{0.2,\,0.4,\,0.6,\,0.8,\,1.0\}$ \\
+$\eta$   & Equity weight     & Penalty on the most-burdened region's carbon & $\{0,\,0.1,\,0.3,\,0.5,\,1.0\}$ \\
+$\gamma$ & Transfer cost     & Per-unit cost of off-home routing (set to $0$) & --- \\
+\bottomrule
+\end{tabularx}
+\caption{Model parameters, their role, and the ranges tested in the sensitivity analysis. The geographic transfer cost $\gamma$ is held at zero because geographic movement is controlled directly by the hard cap~C4.}
+\label{tab:params}
+\end{table}
+
+\label{sec:form-implementation}
+With the full model in place, solving it is straightforward. The program is linear in the continuous variables $\mathbf{x}$, $M$, and the range bounds $u_r$ and $\ell_r$. The only operations that are nonlinear in spirit, the absolute value in the ramp limit and the spread in the range limit, were already written above as the linear inequality pairs C6a--C6b and C7a--C7b, so the program is linear as stated and needs no further reformulation. It is solved with the HiGHS solver \citep{huangfu2018parallelizing} through \texttt{scipy.optimize.linprog} \citep{virtanen2020scipy}, with Gurobi available as an interchangeable backend. Because the formulation is a linear relaxation over continuous load, it solves in well under a second per instance even at the full horizon of $R = 5$ regions and $T = 17{,}544$ hours, so no integer variables are required unless workloads must be dispatched in discrete jobs.
+
+The two-year evaluation in Section~\ref{sec:results} applies the model in a rolling-window backtest, solving the program independently on each successive scheduling window across 2024 and 2025 and accumulating the realized carbon. To benchmark the optimal schedule against a fast rule of the kind used in practice, a greedy heuristic is also implemented. At each window it sorts region-hour pairs by their effective cost $\text{CI}_{r,t}\bigl(1 - \alpha\,\text{CFE}_{r,t}\bigr)$ and fills the cheapest feasible pairs first, subject to the capacity and geographic limits but without solving an optimization problem. The greedy rule therefore respects the geographic cap but not the ramp or range constraints, a distinction that becomes important when its carbon is compared against the LP in Section~\ref{sec:results}.
